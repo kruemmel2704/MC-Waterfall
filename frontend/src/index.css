@@ -1,0 +1,404 @@
+/* ==========================================================================
+   MINECRAFT PIXEL ART & GUI DESIGN SYSTEM
+   ========================================================================== */
+
+:root {
+  --mc-font: 'Silkscreen', 'JetBrains Mono', monospace;
+  --mc-font-heading: 'Press Start 2P', 'Silkscreen', monospace;
+  --mc-font-mono: 'JetBrains Mono', monospace;
+
+  /* Minecraft Chat & GUI Color Palette (§ codes) */
+  --mc-black: #000000;
+  --mc-dark-blue: #0000aa;
+  --mc-dark-green: #00aa00;
+  --mc-dark-aqua: #00aaaa;
+  --mc-dark-red: #aa0000;
+  --mc-dark-purple: #aa00aa;
+  --mc-gold: #ffaa00;
+  --mc-gray: #aaaaaa;
+  --mc-dark-gray: #555555;
+  --mc-blue: #5555ff;
+  --mc-green: #55ff55;
+  --mc-aqua: #55ffff;
+  --mc-red: #ff5555;
+  --mc-light-purple: #ff55ff;
+  --mc-yellow: #ffff55;
+  --mc-white: #ffffff;
+
+  /* Minecraft GUI Grays & Stones */
+  --mc-gui-bg: #1c1c1f;
+  --mc-gui-light: #52525c;
+  --mc-gui-dark: #121215;
+  --mc-btn-bg: #4a4a54;
+  --mc-btn-hover: #60606d;
+  --mc-btn-active: #33333b;
+
+  /* Dimension Badges & Themes */
+  --dim-proxy: #55ffff;
+  --dim-proxy-dark: #00aaaa;
+  --dim-lobby: #ffaa00;
+  --dim-lobby-dark: #aa5500;
+  --dim-overworld: #55ff55;
+  --dim-overworld-dark: #00aa00;
+  --dim-nether: #ff5555;
+  --dim-nether-dark: #aa0000;
+  --dim-end: #ff55ff;
+  --dim-end-dark: #aa00aa;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  image-rendering: pixelated;
+}
+
+body.mc-theme {
+  font-family: var(--mc-font);
+  background-color: #121317;
+  color: #e0e0e0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  /* Authentic Minecraft Dark Bedrock / Deepslate Pattern */
+  background-image: 
+    radial-gradient(circle at center, transparent 30%, rgba(0, 0, 0, 0.75) 100%),
+    linear-gradient(45deg, #16181f 25%, transparent 25%), 
+    linear-gradient(-45deg, #16181f 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #16181f 75%), 
+    linear-gradient(-45deg, transparent 75%, #16181f 75%);
+  background-size: 100% 100%, 32px 32px, 32px 32px, 32px 32px, 32px 32px;
+  background-position: center, 0 0, 0 16px, 16px -16px, -16px 0px;
+  -webkit-font-smoothing: none;
+}
+
+/* Scrollbars - Minecraft Inset Look */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0e12;
+  border-left: 2px solid #20222a;
+}
+::-webkit-scrollbar-thumb {
+  background: #3e414e;
+  border: 2px solid #5a5f70;
+  border-right-color: #1d1e24;
+  border-bottom-color: #1d1e24;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #505466;
+}
+
+/* Typography with Minecraft drop shadow */
+h1, h2, h3, h4, .mc-title {
+  font-family: var(--mc-font-heading);
+  text-shadow: 2px 2px 0px #000000, 3px 3px 0px rgba(0,0,0,0.6);
+  letter-spacing: -0.04em;
+}
+
+.mc-shadow {
+  text-shadow: 2px 2px 0px #000000;
+}
+
+.font-mono {
+  font-family: var(--mc-font-mono);
+}
+
+/* ==========================================================================
+   MINECRAFT BUTTONS
+   ========================================================================== */
+.mc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #464854;
+  color: #ffffff;
+  font-family: var(--mc-font);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-shadow: 2px 2px 0px #1a1a20;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  
+  /* 3D Bevel Edge */
+  border-top: 3px solid #7c8094;
+  border-left: 3px solid #7c8094;
+  border-right: 3px solid #1e2026;
+  border-bottom: 3px solid #1e2026;
+  box-shadow: inset 1px 1px 0px #9da2b8, inset -1px -1px 0px #121317;
+  transition: filter 0.1s, transform 0.05s;
+}
+
+.mc-btn:hover:not(:disabled) {
+  background: #5b5e6e;
+  color: var(--mc-yellow);
+  border-top-color: #9297ad;
+  border-left-color: #9297ad;
+  border-right-color: #2b2e37;
+  border-bottom-color: #2b2e37;
+}
+
+.mc-btn:active:not(:disabled) {
+  background: #33343d;
+  border-top: 3px solid #1e2026;
+  border-left: 3px solid #1e2026;
+  border-right: 3px solid #7c8094;
+  border-bottom: 3px solid #7c8094;
+  box-shadow: inset 1px 1px 0px #121317;
+  transform: translateY(1px);
+}
+
+.mc-btn:disabled {
+  opacity: 0.5;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+/* Button Variants */
+.mc-btn-green {
+  background: #1e5927;
+  border-top-color: #388a44;
+  border-left-color: #388a44;
+  border-right-color: #0d2e13;
+  border-bottom-color: #0d2e13;
+}
+.mc-btn-green:hover:not(:disabled) {
+  background: #287333;
+  color: #ffffff;
+}
+
+.mc-btn-red {
+  background: #6e1f1f;
+  border-top-color: #a33939;
+  border-left-color: #a33939;
+  border-right-color: #380d0d;
+  border-bottom-color: #380d0d;
+}
+.mc-btn-red:hover:not(:disabled) {
+  background: #872828;
+  color: #ffffff;
+}
+
+.mc-btn-blue {
+  background: #174e73;
+  border-top-color: #2b77ab;
+  border-left-color: #2b77ab;
+  border-right-color: #0b273b;
+  border-bottom-color: #0b273b;
+}
+.mc-btn-blue:hover:not(:disabled) {
+  background: #1e6394;
+  color: #ffffff;
+}
+
+.mc-btn-gold {
+  background: #755014;
+  border-top-color: #ad7823;
+  border-left-color: #ad7823;
+  border-right-color: #3b280a;
+  border-bottom-color: #3b280a;
+}
+
+.mc-btn-purple {
+  background: #501d63;
+  border-top-color: #7d3399;
+  border-left-color: #7d3399;
+  border-right-color: #280e33;
+  border-bottom-color: #280e33;
+}
+
+/* ==========================================================================
+   MINECRAFT CONTAINERS & PANELS
+   ========================================================================== */
+.mc-panel {
+  background: rgba(26, 27, 34, 0.95);
+  border: 3px solid #3c3e4a;
+  border-top-color: #4f5263;
+  border-left-color: #4f5263;
+  border-right-color: #121317;
+  border-bottom-color: #121317;
+  box-shadow: 
+    0 0 0 3px #000000, 
+    inset 2px 2px 0px rgba(255, 255, 255, 0.05),
+    0 12px 32px rgba(0, 0, 0, 0.8);
+  position: relative;
+}
+
+.mc-modal {
+  background: #1e1f26;
+  border: 4px solid #585c6e;
+  border-top-color: #787d96;
+  border-left-color: #787d96;
+  border-right-color: #0d0e12;
+  border-bottom-color: #0d0e12;
+  box-shadow: 0 0 0 4px #000000, 0 20px 60px rgba(0,0,0,0.9);
+}
+
+/* Minecraft Slot / Inset Well (For Port, IP, Metrics) */
+.mc-slot {
+  background: #101116;
+  border-top: 2px solid #000000;
+  border-left: 2px solid #000000;
+  border-right: 2px solid #3a3c4a;
+  border-bottom: 2px solid #3a3c4a;
+  padding: 6px 10px;
+}
+
+/* ==========================================================================
+   MINECRAFT FORMS & INPUTS
+   ========================================================================== */
+.mc-input, .mc-select, .mc-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: #0d0e12;
+  border-top: 3px solid #000000;
+  border-left: 3px solid #000000;
+  border-right: 3px solid #3e4152;
+  border-bottom: 3px solid #3e4152;
+  color: var(--mc-yellow);
+  font-family: var(--mc-font-mono);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.mc-input:focus, .mc-select:focus, .mc-textarea:focus {
+  border-top-color: #55ffff;
+  border-left-color: #55ffff;
+  border-right-color: #00aaaa;
+  border-bottom-color: #00aaaa;
+  background: #13151c;
+  box-shadow: 0 0 8px rgba(85, 255, 255, 0.25);
+}
+
+.mc-label {
+  font-family: var(--mc-font);
+  font-size: 0.75rem;
+  color: var(--mc-gray);
+  text-shadow: 1px 1px 0px #000000;
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ==========================================================================
+   MINECRAFT BADGES & STATUS CHIPS
+   ========================================================================== */
+.mc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-family: var(--mc-font);
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 2px solid #000;
+  text-shadow: 1px 1px 0px #000;
+}
+
+.mc-badge-proxy {
+  background: #0b374d;
+  color: var(--dim-proxy);
+  border-color: var(--dim-proxy);
+}
+
+.mc-badge-lobby {
+  background: #47320a;
+  color: var(--dim-lobby);
+  border-color: var(--dim-lobby);
+}
+
+.mc-badge-overworld {
+  background: #0e3d16;
+  color: var(--dim-overworld);
+  border-color: var(--dim-overworld);
+}
+
+.mc-badge-nether {
+  background: #471111;
+  color: var(--dim-nether);
+  border-color: var(--dim-nether);
+}
+
+.mc-badge-end {
+  background: #3b0f4a;
+  color: var(--dim-end);
+  border-color: var(--dim-end);
+}
+
+/* Status Signal Dots - Minecraft Torch / Redstone Style */
+.mc-status-dot {
+  width: 10px;
+  height: 10px;
+  border: 1px solid #000;
+  display: inline-block;
+}
+
+.mc-status-online {
+  background: var(--mc-green);
+  box-shadow: 0 0 8px var(--mc-green);
+}
+
+.mc-status-offline {
+  background: var(--mc-dark-gray);
+}
+
+.mc-status-starting {
+  background: var(--mc-yellow);
+  box-shadow: 0 0 8px var(--mc-yellow);
+  animation: mc-pulse 1s steps(2, start) infinite;
+}
+
+.mc-status-error {
+  background: var(--mc-red);
+  box-shadow: 0 0 8px var(--mc-red);
+}
+
+@keyframes mc-pulse {
+  to { opacity: 0.3; }
+}
+
+/* ==========================================================================
+   MINECRAFT CONSOLE / COMMAND BLOCK TERMINAL
+   ========================================================================== */
+.mc-terminal {
+  background: #090a0d;
+  border: 3px solid #000000;
+  box-shadow: inset 2px 2px 0px #1a1b24, inset -2px -2px 0px #000000;
+}
+
+.mc-terminal-header {
+  background: #252733;
+  border-bottom: 2px solid #000000;
+  padding: 8px 14px;
+}
+
+.mc-terminal-body {
+  padding: 14px;
+  height: 360px;
+  overflow-y: auto;
+  font-family: var(--mc-font-mono);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #ffffff;
+  background: #090a0d;
+}
+
+/* Minecraft Chat Colors in Terminal */
+.log-info { color: var(--mc-aqua); }
+.log-warn { color: var(--mc-yellow); }
+.log-error { color: var(--mc-red); }
+.log-chat { color: var(--mc-green); }
+.log-cmd { color: var(--mc-light-purple); }
+
+/* Animation Utility */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin-anim {
+  animation: spin 1s linear infinite;
+}

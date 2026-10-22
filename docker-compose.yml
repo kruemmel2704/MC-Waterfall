@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # C# ASP.NET Core Backend & SSH Orchestrator
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mc-waterfall-backend
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    volumes:
+      - ./backend/Data:/app/Data
+    networks:
+      - mc-network
+
+  # ReactJS Frontend (Nginx Production Server)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mc-waterfall-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - mc-network
+
+networks:
+  mc-network:
+    name: mc-waterfall-network
+    driver: bridge

@@ -1,0 +1,18 @@
+{
+  "IsEnabled": false,
+  "ClientId": "",
+  "ClientSecret": "",
+  "BotToken": "",
+  "GuildId": "",
+  "RequiredRoleId": "",
+  "AdminRoleId": "",
+  "RedirectUri": "http://localhost:5173/auth/discord",
+  "EnableMinecraftOAuth2": true,
+  "EnableMinecraftWhitelisting": true,
+  "RequireGuildMembership": false,
+  "UnverifiedKickMessage": "§cBitte verifiziere dich zuerst über Discord OAuth2: §bhttp://localhost:5173/auth/discord",
+  "CachedGuildName": null,
+  "CachedGuildIcon": null,
+  "IsGuildVerified": false,
+  "LastVerifiedAt": null
+}

@@ -1,0 +1,6 @@
+@McWaterfall.Backend_HostAddress = http://localhost:5005
+
+GET {{McWaterfall.Backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
