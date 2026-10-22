@@ -28,6 +28,7 @@ export default function App() {
   const [consoleNodeId, setConsoleNodeId] = useState('');
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Authentication & Setup Wizard State
   const [authStatus, setAuthStatus] = useState(null);
@@ -35,6 +36,26 @@ export default function App() {
   const [showSetupWizard, setShowSetupWizard] = useState(
     window.location.pathname === '/setup' || window.location.hash === '#setup'
   );
+
+  // Close mobile drawer on Escape and lock body scrolling when open
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
 
   // Check if current URL is an OAuth callback
   const isOAuthCallback = window.location.pathname.startsWith('/auth/discord') || 
@@ -313,25 +334,26 @@ export default function App() {
       )}
 
       {/* Top Minecraft Navigation Header */}
-      <header style={{
+      <header className="mc-header-container" style={{
         background: '#191b22',
         borderBottom: '4px solid #373945',
         boxShadow: '0 4px 0 #0d0e12, 0 10px 25px rgba(0,0,0,0.8)',
         position: 'sticky',
         top: 0,
-        zIndex: 50,
+        zIndex: 100,
         padding: '14px 24px'
       }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
           {/* Brand with Generated Minecraft Discord Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
             <div style={{
-              width: '48px',
-              height: '48px',
+              width: '44px',
+              height: '44px',
               background: '#0d0e12',
               border: '2px solid var(--mc-blue)',
               boxShadow: '0 0 14px rgba(85,85,255,0.4), inset 2px 2px 0 #000',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              flexShrink: 0
             }}>
               <img
                 src="/logo.jpg"
@@ -339,23 +361,23 @@ export default function App() {
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h1 className="mc-title" style={{ fontSize: '1.05rem', color: 'var(--mc-white)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h1 className="mc-title mc-title-brand" style={{ fontSize: '1.05rem', color: 'var(--mc-white)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {clusterConfig?.clusterName?.toUpperCase() || 'MINECRAFT WATERFALL CLUSTER'}
                 </h1>
-                <span className="mc-badge mc-badge-proxy" style={{ fontSize: '0.65rem' }}>
+                <span className="mc-badge mc-badge-proxy desktop-only" style={{ fontSize: '0.65rem' }}>
                   DISCORD OAUTH2
                 </span>
               </div>
-              <p style={{ fontSize: '0.7rem', color: 'var(--mc-gray)', marginTop: '2px' }}>
+              <p className="desktop-only" style={{ fontSize: '0.7rem', color: 'var(--mc-gray)', marginTop: '2px' }}>
                 Multi-Dimension Server Orchestration & Discord In-Game Verification
               </p>
             </div>
           </div>
 
-          {/* Minecraft Item Slots for Stats */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Minecraft Item Slots for Stats - Desktop */}
+          <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="mc-slot">
               <span style={{ fontSize: '0.6rem', color: 'var(--mc-gray)', display: 'block' }}>ONLINE SERVER</span>
               <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: onlineCount > 0 ? 'var(--mc-green)' : 'var(--mc-dark-gray)' }}>
@@ -370,8 +392,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Global Master Cluster Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Global Master Cluster Controls - Desktop */}
+          <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button onClick={handleStartAll} className="mc-btn mc-btn-green" title="Alle Server starten">
               <Play size={13} /> CLUSTER STARTEN
             </button>
@@ -407,10 +429,33 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          {/* Mobile Right Controls: Compact Online Status & Animated 3-Bar Hamburger */}
+          <div className="mobile-only" style={{ alignItems: 'center', gap: '10px' }}>
+            <div className="mc-slot" style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className={`mc-status-dot ${onlineCount > 0 ? 'mc-status-online' : 'mc-status-offline'}`} />
+              <span className="font-mono" style={{ fontSize: '0.75rem', fontWeight: 700, color: onlineCount > 0 ? 'var(--mc-green)' : 'var(--mc-gray)' }}>
+                {onlineCount}/{nodes.length}
+              </span>
+            </div>
+
+            {/* The Animated 3-Bar Hamburger Button */}
+            <button
+              type="button"
+              className={`mc-hamburger-btn ${mobileMenuOpen ? 'is-active' : ''}`}
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              aria-label={mobileMenuOpen ? 'Menü schließen' : 'Menü öffnen'}
+              title="Menü umschalten"
+            >
+              <span className="mc-hamburger-bar"></span>
+              <span className="mc-hamburger-bar"></span>
+              <span className="mc-hamburger-bar"></span>
+            </button>
+          </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div style={{ maxWidth: '1400px', margin: '14px auto 0', display: 'flex', gap: '8px', borderTop: '2px solid #282a35', paddingTop: '10px', flexWrap: 'wrap' }}>
+        {/* Navigation Tabs - Desktop Horizontal View */}
+        <div className="desktop-only" style={{ maxWidth: '1400px', margin: '14px auto 0', display: 'flex', gap: '8px', borderTop: '2px solid #282a35', paddingTop: '10px', flexWrap: 'wrap' }}>
           <button
             onClick={() => setActiveTab('topology')}
             className={`mc-btn ${activeTab === 'topology' ? 'mc-btn-blue' : ''}`}
@@ -469,6 +514,141 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* Mobile Drawer Backdrop */}
+      <div 
+        className={`mc-mobile-backdrop ${mobileMenuOpen ? 'open' : ''}`} 
+        onClick={() => setMobileMenuOpen(false)}
+      />
+
+      {/* Slide-out Mobile Drawer */}
+      <aside className={`mc-mobile-drawer ${mobileMenuOpen ? 'open' : ''}`}>
+        {/* Drawer Header */}
+        <div className="mc-drawer-header">
+          <div className="mc-drawer-title">
+            <WaterfallBeaconIcon size={18} />
+            <span>CLUSTER MENÜ</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="mc-btn mc-btn-red"
+            style={{ padding: '5px 10px', fontSize: '0.75rem' }}
+            title="Schließen"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* User / Admin Info */}
+        <div className="mc-slot" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {authStatus?.avatarUrl ? (
+              <img src={authStatus.avatarUrl} alt="Avatar" style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+            ) : (
+              <UserIcon size={18} color="var(--mc-aqua)" />
+            )}
+            <div>
+              <div style={{ fontSize: '0.78rem', color: '#fff', fontWeight: 'bold' }}>
+                {authStatus?.username || 'Admin'}
+              </div>
+              <div style={{ fontSize: '0.62rem', color: 'var(--mc-gray)' }}>
+                {authStatus?.authMethod === 'discord' ? 'Discord OAuth2' : 'Passwort Auth'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+            className="mc-btn mc-btn-red"
+            style={{ padding: '5px 10px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+            title="Abmelden"
+          >
+            <LogOut size={12} /> LOGOUT
+          </button>
+        </div>
+
+        {/* Server Metrics in Mobile Drawer */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div className="mc-slot">
+            <span style={{ fontSize: '0.58rem', color: 'var(--mc-gray)', display: 'block' }}>ONLINE SERVER</span>
+            <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: onlineCount > 0 ? 'var(--mc-green)' : 'var(--mc-dark-gray)' }}>
+              {onlineCount} / {nodes.length}
+            </span>
+          </div>
+          <div className="mc-slot">
+            <span style={{ fontSize: '0.58rem', color: 'var(--mc-gray)', display: 'block' }}>GESAMT-RAM</span>
+            <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--mc-aqua)' }}>
+              {(totalRamMb / 1024).toFixed(1)} GB
+            </span>
+          </div>
+        </div>
+
+        {/* Cluster Action Buttons in Mobile Drawer */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-aqua)', marginBottom: '2px' }}>
+            ⚡ CLUSTER-AKTIONEN
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+            <button 
+              onClick={() => { setMobileMenuOpen(false); handleStartAll(); }} 
+              className="mc-btn mc-btn-green"
+              style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center' }}
+            >
+              <Play size={13} /> STARTEN
+            </button>
+            <button 
+              onClick={() => { setMobileMenuOpen(false); handleStopAll(); }} 
+              className="mc-btn mc-btn-red"
+              style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center' }}
+            >
+              <Square size={13} /> STOPPEN
+            </button>
+          </div>
+          <button 
+            onClick={() => { setMobileMenuOpen(false); handleSyncWaterfall(); }} 
+            className="mc-btn mc-btn-blue"
+            style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center', marginTop: '2px' }}
+          >
+            <RotateCw size={13} /> PROXY SYNC
+          </button>
+        </div>
+
+        {/* Navigation Tabs in Mobile Drawer */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+          <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-aqua)', marginBottom: '2px' }}>
+            🧭 DIMENSIONEN & NAVIGATION
+          </span>
+          {[
+            { id: 'topology', label: 'TOPOLOGIE', icon: <WaterfallBeaconIcon size={16} /> },
+            { id: 'nodes', label: `SERVER & SSH (${nodes.length})`, icon: <GrassBlockIcon size={16} /> },
+            { id: 'console', label: 'LIVE KONSOLE', icon: <CommandBlockIcon size={16} /> },
+            { id: 'portals', label: 'DIMENSIONS & PORTALS', icon: <NetherPortalIcon size={16} /> },
+            { id: 'discord', label: 'DISCORD AUTH & OAUTH2', icon: <Shield size={16} /> },
+            { id: 'plugins', label: 'MODRINTH PLUGINS', icon: <Package size={16} /> },
+            { id: 'worlds', label: 'WELTEN & BACKUP', icon: <Compass size={16} /> },
+            { id: 'settings', label: 'EINSTELLUNGEN', icon: <Settings size={16} /> }
+          ].map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setMobileMenuOpen(false);
+                }}
+                className={`mc-btn mc-drawer-item ${isActive ? 'active' : ''}`}
+                style={{ cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                </div>
+                {isActive && <span style={{ color: 'var(--mc-yellow)', fontWeight: 'bold', fontSize: '1rem' }}>›</span>}
+              </button>
+            );
+          })}
+        </div>
+      </aside>
 
       {/* Main Content Area */}
       <main style={{ flex: 1, maxWidth: '1400px', width: '100%', margin: '0 auto', padding: '24px 20px' }}>
