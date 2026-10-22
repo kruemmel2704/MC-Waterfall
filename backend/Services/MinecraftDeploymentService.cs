@@ -86,7 +86,7 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
             if (installJavaIfMissing)
             {
                 AddLog("Java-Installation", true, "Java nicht gefunden. Installiere OpenJDK 21 via apt/dnf...");
-                var installCmd = "sudo apt-get update -y && sudo apt-get install -y openjdk-21-jre-headless screen curl wget || sudo dnf install -y java-21-openjdk-headless screen curl wget";
+                var installCmd = "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jre-headless screen curl wget || sudo dnf install -y java-21-openjdk-headless screen curl wget";
                 var (exitCode, stdOut, stdErr) = await _sshService.ExecuteCommandAsync(node, installCmd, 300);
                 if (exitCode != 0)
                 {
@@ -114,7 +114,7 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
         if (!sshTest.ScreenOrTmuxInstalled)
         {
             AddLog("Paketverwaltung", true, "Installiere Screen-Dienst zur Hintergrundsteuerung...");
-            await _sshService.ExecuteCommandAsync(node, "sudo apt-get install -y screen || sudo dnf install -y screen", 60);
+            await _sshService.ExecuteCommandAsync(node, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y screen || sudo dnf install -y screen", 60);
         }
 
         // Step 4: Create Directory
@@ -126,7 +126,7 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
         // Step 5: Download Server Jar
         var jarUrl = await ResolveDownloadUrlAsync(node);
         AddLog("Download", true, $"Lade {node.ServerType} Jar herunter: {jarUrl}");
-        var downloadCmd = $"curl -fSL -o '{remoteDir}/server.jar' '{jarUrl}' || wget -qO '{remoteDir}/server.jar' '{jarUrl}'";
+        var downloadCmd = $"curl -fSL -A 'McWaterfall/1.0 (admin@example.com)' -o '{remoteDir}/server.jar' '{jarUrl}' || wget -q --user-agent='McWaterfall/1.0' -O '{remoteDir}/server.jar' '{jarUrl}'";
         var dlRes = await _sshService.ExecuteCommandAsync(node, downloadCmd, 180);
         if (dlRes.ExitCode != 0)
         {
@@ -197,30 +197,42 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
 
     private async Task<string> ResolveDownloadUrlAsync(ClusterNode node)
     {
+        const string userAgent = "McWaterfall/1.0 (admin@example.com)";
+
         if (node.Role == ServerRole.WaterfallProxy || node.ServerType == ServerType.Waterfall)
         {
             try
             {
-                // Query PaperMC API for Waterfall
-                var versionRes = await _httpClient.GetFromJsonAsync<JsonElement>("https://api.papermc.io/v2/projects/waterfall");
-                if (versionRes.TryGetProperty("versions", out var versions) && versions.GetArrayLength() > 0)
+                using var req = new HttpRequestMessage(HttpMethod.Get, "https://fill.papermc.io/v3/projects/waterfall/versions/1.21");
+                req.Headers.Add("User-Agent", userAgent);
+                var res = await _httpClient.SendAsync(req);
+                if (res.IsSuccessStatusCode)
                 {
-                    var latestVersion = versions[versions.GetArrayLength() - 1].GetString()!;
-                    var buildsRes = await _httpClient.GetFromJsonAsync<JsonElement>($"https://api.papermc.io/v2/projects/waterfall/versions/{latestVersion}/builds");
-                    if (buildsRes.TryGetProperty("builds", out var builds) && builds.GetArrayLength() > 0)
+                    var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                    if (doc.TryGetProperty("builds", out var builds) && builds.GetArrayLength() > 0)
                     {
-                        var latestBuild = builds[builds.GetArrayLength() - 1].GetProperty("build").GetInt32();
-                        var jarName = builds[builds.GetArrayLength() - 1].GetProperty("downloads").GetProperty("application").GetProperty("name").GetString()!;
-                        return $"https://api.papermc.io/v2/projects/waterfall/versions/{latestVersion}/builds/{latestBuild}/downloads/{jarName}";
+                        var latestBuild = builds[0].GetInt32();
+                        using var buildReq = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/waterfall/versions/1.21/builds/{latestBuild}");
+                        buildReq.Headers.Add("User-Agent", userAgent);
+                        var buildRes = await _httpClient.SendAsync(buildReq);
+                        if (buildRes.IsSuccessStatusCode)
+                        {
+                            var buildDoc = await buildRes.Content.ReadFromJsonAsync<JsonElement>();
+                            if (buildDoc.TryGetProperty("downloads", out var dl) && dl.TryGetProperty("server:default", out var srv))
+                            {
+                                var directUrl = srv.GetProperty("url").GetString();
+                                if (!string.IsNullOrWhiteSpace(directUrl)) return directUrl;
+                            }
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to resolve latest Waterfall from PaperMC API, using fallback.");
+                _logger.LogWarning(ex, "Failed to resolve latest Waterfall from Fill API, using verified direct fallback.");
             }
-            // Fallback stable Waterfall build
-            return "https://api.papermc.io/v2/projects/waterfall/versions/1.20/builds/563/downloads/waterfall-1.20-563.jar";
+            // Verified active direct download URL
+            return "https://fill-data.papermc.io/v1/objects/5eda8bfd0691e5088701f87020c68964299586df0faba289a634122d282d598c/waterfall-1.21-615.jar";
         }
         else
         {
@@ -228,19 +240,36 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
             var mcVersion = string.IsNullOrWhiteSpace(node.MinecraftVersion) ? "1.21.1" : node.MinecraftVersion;
             try
             {
-                var buildsRes = await _httpClient.GetFromJsonAsync<JsonElement>($"https://api.papermc.io/v2/projects/paper/versions/{mcVersion}/builds");
-                if (buildsRes.TryGetProperty("builds", out var builds) && builds.GetArrayLength() > 0)
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/paper/versions/{mcVersion}");
+                req.Headers.Add("User-Agent", userAgent);
+                var res = await _httpClient.SendAsync(req);
+                if (res.IsSuccessStatusCode)
                 {
-                    var latestBuild = builds[builds.GetArrayLength() - 1].GetProperty("build").GetInt32();
-                    var jarName = builds[builds.GetArrayLength() - 1].GetProperty("downloads").GetProperty("application").GetProperty("name").GetString()!;
-                    return $"https://api.papermc.io/v2/projects/paper/versions/{mcVersion}/builds/{latestBuild}/downloads/{jarName}";
+                    var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                    if (doc.TryGetProperty("builds", out var builds) && builds.GetArrayLength() > 0)
+                    {
+                        var latestBuild = builds[0].GetInt32();
+                        using var buildReq = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/paper/versions/{mcVersion}/builds/{latestBuild}");
+                        buildReq.Headers.Add("User-Agent", userAgent);
+                        var buildRes = await _httpClient.SendAsync(buildReq);
+                        if (buildRes.IsSuccessStatusCode)
+                        {
+                            var buildDoc = await buildRes.Content.ReadFromJsonAsync<JsonElement>();
+                            if (buildDoc.TryGetProperty("downloads", out var dl) && dl.TryGetProperty("server:default", out var srv))
+                            {
+                                var directUrl = srv.GetProperty("url").GetString();
+                                if (!string.IsNullOrWhiteSpace(directUrl)) return directUrl;
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to resolve Paper build for {Version}, trying 1.21.1 fallback.", mcVersion);
+                _logger.LogWarning(ex, "Failed to resolve Paper build for {Version}, using verified direct fallback.", mcVersion);
             }
-            return "https://api.papermc.io/v2/projects/paper/versions/1.21.1/builds/119/downloads/paper-1.21.1-119.jar";
+            // Verified active direct download URL for Paper 1.21.1
+            return "https://fill-data.papermc.io/v1/objects/39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9/paper-1.21.1-133.jar";
         }
     }
 
