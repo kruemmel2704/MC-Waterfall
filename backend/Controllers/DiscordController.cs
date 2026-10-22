@@ -248,15 +248,84 @@ public class DiscordController : ControllerBase
     public async Task<IActionResult> EnforceWhitelist([FromQuery] bool enabled = true)
     {
         var cluster = await _clusterService.GetConfigAsync();
+        var discord = await _discordService.GetConfigAsync();
+        var verifiedPlayers = await _discordService.GetLinkedPlayersAsync();
+        var whitelistedUsernames = verifiedPlayers
+            .Where(p => p.IsWhitelisted && !string.IsNullOrWhiteSpace(p.MinecraftUsername))
+            .Select(p => p.MinecraftUsername.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var kickMsg = !string.IsNullOrWhiteSpace(discord.UnverifiedKickMessage)
+            ? discord.UnverifiedKickMessage
+            : $"§cBitte verifiziere dich zuerst über Discord OAuth2: §b{discord.RedirectUri}";
+        var escapedKickMsg = kickMsg.Replace("\"", "'");
+
         var details = new List<string>();
+
+        // 1. Enforce on each Minecraft backend node (Lobby, Overworld, Nether, End)
         foreach (var node in cluster.Nodes.Where(n => n.Role != ServerRole.WaterfallProxy))
         {
+            var nodeDir = node.RemoteDirectory.TrimEnd('/');
+
+            // Persist white-list & enforce-whitelist into server.properties
+            var propScript = enabled
+                ? $"cd '{nodeDir}' 2>/dev/null && " +
+                  $"sed -i 's/^white-list=.*/white-list=true/' server.properties 2>/dev/null || true; " +
+                  $"grep -q '^white-list=' server.properties 2>/dev/null || echo 'white-list=true' >> server.properties; " +
+                  $"sed -i 's/^enforce-whitelist=.*/enforce-whitelist=true/' server.properties 2>/dev/null || true; " +
+                  $"grep -q '^enforce-whitelist=' server.properties 2>/dev/null || echo 'enforce-whitelist=true' >> server.properties"
+                : $"cd '{nodeDir}' 2>/dev/null && " +
+                  $"sed -i 's/^white-list=.*/white-list=false/' server.properties 2>/dev/null || true; " +
+                  $"sed -i 's/^enforce-whitelist=.*/enforce-whitelist=false/' server.properties 2>/dev/null || true";
+            
+            await _sshService.ExecuteCommandAsync(node, propScript, 10);
+
+            // Update spigot.yml kick message
+            if (enabled)
+            {
+                var spigotScript = $"cd '{nodeDir}' 2>/dev/null && sed -i 's|whitelist:.*|whitelist: \"{escapedKickMsg}\"|' spigot.yml 2>/dev/null || true";
+                await _sshService.ExecuteCommandAsync(node, spigotScript, 10);
+            }
+
+            // Send Paper console commands
             var cmd = enabled ? "whitelist on" : "whitelist off";
             await _clusterService.SendCommandAsync(node.Id, cmd);
             await _clusterService.SendCommandAsync(node.Id, "whitelist reload");
-            details.Add($"{node.Name}: Whitelist {(enabled ? "aktiviert (nur noch verifizierte Spieler können beitreten)" : "deaktiviert")}.");
+
+            // If enabled, actively kick any unverified players currently online in Minecraft!
+            if (enabled)
+            {
+                if (whitelistedUsernames.Count == 0)
+                {
+                    // No one is verified -> kick all active players immediately
+                    await _clusterService.SendCommandAsync(node.Id, $"kick @a {escapedKickMsg}");
+                }
+                else
+                {
+                    // Kick anyone whose name is NOT in the whitelisted list
+                    var filter = string.Join(",", whitelistedUsernames.Select(u => $"name=!{u}"));
+                    await _clusterService.SendCommandAsync(node.Id, $"kick @a[{filter}] {escapedKickMsg}");
+                }
+            }
+
+            details.Add($"{node.Name}: Whitelist {(enabled ? "aktiviert & erzwungen (unverifizierte Spieler gekickt)" : "deaktiviert")}.");
         }
-        return Ok(new { success = true, message = $"Whitelist erfolgreich auf allen Servern {(enabled ? "aktiviert" : "deaktiviert")}!", details });
+
+        // 2. Alert on Waterfall Proxy
+        var proxy = cluster.Nodes.FirstOrDefault(n => n.Role == ServerRole.WaterfallProxy);
+        if (proxy != null && enabled)
+        {
+            await _clusterService.SendCommandAsync(proxy.Id, "alert §6[Security] §eDiscord OAuth2 Whitelist ist ab sofort aktiv!");
+        }
+
+        return Ok(new 
+        { 
+            success = true, 
+            message = $"Whitelist erfolgreich auf allen Servern {(enabled ? "aktiviert & erzwungen" : "deaktiviert")}!", 
+            verifiedCount = whitelistedUsernames.Count,
+            details 
+        });
     }
 
     [HttpPost("install-discordsrv")]

@@ -363,7 +363,8 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
         sb.AppendLine($"motd={node.Motd}");
         sb.AppendLine("network-compression-threshold=256");
         sb.AppendLine("enable-rcon=false");
-        sb.AppendLine("white-list=false");
+        sb.AppendLine("white-list=true");
+        sb.AppendLine("enforce-whitelist=true");
         sb.AppendLine("spawn-protection=0");
         sb.AppendLine("view-distance=10");
         sb.AppendLine("simulation-distance=8");
@@ -387,9 +388,13 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
         return sb.ToString();
     }
 
-    public string GenerateSpigotConfig(ClusterNode node)
+    public string GenerateSpigotConfig(ClusterNode node, string? customKickMessage = null)
     {
-        return @"# Spigot configuration for Waterfall Dimension Cluster
+        var kickMsg = !string.IsNullOrWhiteSpace(customKickMessage)
+            ? customKickMessage
+            : "§cBitte verifiziere dich zuerst über Discord OAuth2!";
+
+        return $@"# Spigot configuration for Waterfall Dimension Cluster
 config-version: 12
 settings:
   bungeecord: true
@@ -397,6 +402,13 @@ settings:
   sample-count: 12
   player-shuffle: 0
   user-cache-size: 1000
+messages:
+  whitelist: ""{kickMsg}""
+  unknown-command: ""Unknown command""
+  server-full: ""The server is full!""
+  outdated-client: ""Outdated client! Please use {{0}}""
+  outdated-server: ""Outdated server! I'm still on {{0}}""
+  restart: ""Server is restarting""
 advancements:
   disable-saving: false
   disabled:

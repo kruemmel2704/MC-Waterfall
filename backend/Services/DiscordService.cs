@@ -576,6 +576,7 @@ public class DiscordService : IDiscordService
             foreach (var node in clusterConfig.Nodes.Where(n => n.Role != ServerRole.WaterfallProxy))
             {
                 await _clusterService.SendCommandAsync(node.Id, $"whitelist remove {minecraftUsername}");
+                await _clusterService.SendCommandAsync(node.Id, $"kick {minecraftUsername} §cDeine Discord-Verknüpfung wurde aufgehoben!");
             }
         }
         catch {}

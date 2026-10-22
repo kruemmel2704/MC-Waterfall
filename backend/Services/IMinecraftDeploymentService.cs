@@ -19,7 +19,7 @@ public interface IMinecraftDeploymentService
 
     string GenerateWaterfallConfig(ClusterConfig clusterConfig, ClusterNode proxyNode);
     string GenerateServerProperties(ClusterNode node);
-    string GenerateSpigotConfig(ClusterNode node);
+    string GenerateSpigotConfig(ClusterNode node, string? customKickMessage = null);
     string GeneratePaperGlobalConfig(ClusterNode node);
     string GenerateRunScript(ClusterNode node);
 }

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("McWaterfall.Backend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e835d058b3679538cfbe01fb22da6a9ff188003a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+42523d368ade5ed3b0bbb56cefc04001908681ac")]
 [assembly: System.Reflection.AssemblyProductAttribute("McWaterfall.Backend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("McWaterfall.Backend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
