@@ -1,19 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, AlertCircle, RefreshCw, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, AlertCircle, RefreshCw, ArrowLeft, Sparkles } from 'lucide-react';
 
 export default function DiscordOAuthCallbackPage({ onBackToDashboard }) {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [inputPlayerName, setInputPlayerName] = useState('');
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const state = params.get('state');
+    const playerParam = params.get('player') || params.get('name') || params.get('spieler');
 
+    // Case 1: No code present yet
     if (!code) {
-      setError('Kein Discord OAuth2 Autorisierungscode in der URL gefunden.');
+      // If player name is provided as query param: auto-redirect to Discord OAuth!
+      if (playerParam) {
+        setLoading(true);
+        fetch(`/api/discord/oauth/url?state=${encodeURIComponent(playerParam.trim())}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.url) {
+              window.location.href = data.url;
+            } else {
+              throw new Error('OAuth2-URL konnte nicht geladen werden.');
+            }
+          })
+          .catch(err => {
+            setError(err.message);
+            setLoading(false);
+          });
+        return;
+      }
+
+      // No code and no player param: prompt player for their Minecraft username
       setLoading(false);
+      setShowNamePrompt(true);
       return;
     }
 
@@ -83,6 +108,25 @@ export default function DiscordOAuthCallbackPage({ onBackToDashboard }) {
       });
   }, []);
 
+  const handleStartOAuthWithName = async (e) => {
+    e.preventDefault();
+    if (!inputPlayerName.trim()) return;
+    setRedirecting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/discord/oauth/url?state=${encodeURIComponent(inputPlayerName.trim())}`);
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('OAuth2-URL konnte nicht geladen werden.');
+      }
+    } catch (err) {
+      setError(err.message);
+      setRedirecting(false);
+    }
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -125,6 +169,52 @@ export default function DiscordOAuthCallbackPage({ onBackToDashboard }) {
             <p style={{ color: 'var(--mc-gray)', fontSize: '0.85rem' }}>
               Verifiziere Account mit Discord & prüfe Server-Mitgliedschaft...
             </p>
+          </div>
+        )}
+
+        {!loading && showNamePrompt && !result && (
+          <div style={{ margin: '10px 0 20px' }}>
+            <div style={{
+              background: '#12141c',
+              border: '2px solid var(--mc-blue)',
+              padding: '20px',
+              textAlign: 'left'
+            }}>
+              <h3 className="mc-title" style={{ fontSize: '0.85rem', color: 'var(--mc-aqua)', marginBottom: '8px' }}>
+                MINECRAFT SPIELER-VERIFIZIERUNG
+              </h3>
+              <p style={{ fontSize: '0.75rem', color: 'var(--mc-gray)', marginBottom: '16px', lineHeight: 1.4 }}>
+                Gib deinen genauen Minecraft-Spielernamen ein. Anschließend wirst du zu Discord weitergeleitet, um deinen Account für das Dimension-Cluster freizuschalten.
+              </p>
+
+              <form onSubmit={handleStartOAuthWithName}>
+                <div style={{ marginBottom: '16px' }}>
+                  <label className="mc-label" style={{ fontSize: '0.72rem', color: '#fff', marginBottom: '6px' }}>
+                    DEIN MINECRAFT SPIELERNAME:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="z.B. Steve oder kruemmel2704"
+                    value={inputPlayerName}
+                    onChange={e => setInputPlayerName(e.target.value)}
+                    className="mc-input"
+                    style={{ fontSize: '0.9rem', padding: '10px 12px' }}
+                    autoFocus
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={redirecting || !inputPlayerName.trim()}
+                  className="mc-btn mc-btn-purple"
+                  style={{ width: '100%', padding: '10px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <Sparkles size={16} />
+                  {redirecting ? 'LEITE ZU DISCORD WEITER...' : 'JETZT MIT DISCORD VERKNÜPFEN'}
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
