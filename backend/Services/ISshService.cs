@@ -12,4 +12,5 @@ public interface ISshService
     Task<string> ReadTextFileAsync(ClusterNode node, string remoteFilePath);
     Task<bool> FileExistsAsync(ClusterNode node, string remoteFilePath);
     Task<string> GetLatestLogSnippetAsync(ClusterNode node, int lines = 100);
+    Task DownloadBinaryFileAsync(ClusterNode node, string remoteFilePath, Stream destination);
 }

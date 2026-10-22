@@ -233,6 +233,21 @@ public class SshService : ISshService
         });
     }
 
+    public async Task DownloadBinaryFileAsync(ClusterNode node, string remoteFilePath, Stream destination)
+    {
+        await Task.Run(() =>
+        {
+            var connInfo = CreateConnectionInfo(node, 60);
+            using var sftp = new SftpClient(connInfo);
+            sftp.Connect();
+            if (sftp.Exists(remoteFilePath))
+            {
+                sftp.DownloadFile(remoteFilePath, destination);
+            }
+            sftp.Disconnect();
+        });
+    }
+
     public async Task<bool> FileExistsAsync(ClusterNode node, string remoteFilePath)
     {
         return await Task.Run(() =>
