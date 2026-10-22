@@ -291,7 +291,22 @@ export default function DiscordAuthTab() {
             </div>
 
             <div style={{ marginBottom: '16px' }}>
-              <label className="mc-label">OAUTH2 REDIRECT URI</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label className="mc-label" style={{ margin: 0 }}>OAUTH2 REDIRECT URI</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const detected = `${window.location.origin}/auth/discord`;
+                    setConfig({ ...config, redirectUri: detected });
+                    navigator.clipboard.writeText(detected);
+                    setMessage({ type: 'success', text: `Aktuelle Redirect URI kopiert & gesetzt: ${detected}` });
+                  }}
+                  className="mc-btn"
+                  style={{ padding: '2px 8px', fontSize: '0.65rem' }}
+                >
+                  AKTUELLE IP/DOMAIN ÜBERNEHMEN
+                </button>
+              </div>
               <input
                 type="text"
                 className="mc-input font-mono"
@@ -299,7 +314,7 @@ export default function DiscordAuthTab() {
                 onChange={e => setConfig({ ...config, redirectUri: e.target.value })}
               />
               <span style={{ fontSize: '0.65rem', color: 'var(--mc-gray)', marginTop: '2px', display: 'block' }}>
-                Trage diese URL im Discord Portal unter OAuth2 &gt; Redirects ein!
+                Trage genau diese URL im Discord Portal unter <strong>OAuth2 ➔ Redirects</strong> ein!
               </span>
             </div>
 

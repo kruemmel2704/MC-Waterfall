@@ -28,12 +28,12 @@ builder.Services.AddSingleton<IMinecraftDeploymentService, MinecraftDeploymentSe
 builder.Services.AddSingleton<IClusterManagerService, ClusterManagerService>();
 builder.Services.AddSingleton<IDiscordService, DiscordService>();
 
-// CORS policy for React Frontend
+// CORS policy for React Frontend (supports external IP, domain, and Docker network)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173")
+        policy.SetIsOriginAllowed(origin => true)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

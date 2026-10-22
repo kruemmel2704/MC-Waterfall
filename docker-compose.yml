@@ -8,14 +8,19 @@ services:
       dockerfile: Dockerfile
     container_name: mc-waterfall-backend
     restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5005
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
     ports:
-      - "5005:5005"
+      # Von außen erreichbar auf Port 5005
+      - "0.0.0.0:5005:5005"
     volumes:
       - ./backend/Data:/app/Data
     networks:
       - mc-network
 
-  # ReactJS Frontend (Nginx Production Server)
+  # ReactJS Frontend (Nginx Production Webserver & Reverse Proxy)
   frontend:
     build:
       context: ./frontend
@@ -23,7 +28,10 @@ services:
     container_name: mc-waterfall-frontend
     restart: unless-stopped
     ports:
-      - "5173:80"
+      # Von außen erreichbar über Standard-Port 80 (http://deine-ip/)
+      - "0.0.0.0:80:80"
+      # Und alternativ über Port 5173 (http://deine-ip:5173/)
+      - "0.0.0.0:5173:80"
     depends_on:
       - backend
     networks:

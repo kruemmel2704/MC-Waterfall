@@ -38,3 +38,4 @@ C:\Users\User\Desktop\Projekte\MC Waterfall\backend\obj\Debug\net10.0\ref\McWate
 C:\Users\User\Desktop\Projekte\MC Waterfall\backend\bin\Debug\net10.0\Data\cluster_config.json
 C:\Users\User\Desktop\Projekte\MC Waterfall\backend\bin\Debug\net10.0\Data\discord_config.json
 C:\Users\User\Desktop\Projekte\MC Waterfall\backend\bin\Debug\net10.0\Data\minecraft_discord_links.json
+C:\Users\User\Desktop\Projekte\MC Waterfall\backend\obj\Debug\net10.0\McWaterfall.Backend.sourcelink.json
