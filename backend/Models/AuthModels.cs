@@ -29,6 +29,7 @@ public class AuthStatusResponse
     public string ServerName { get; set; } = string.Empty;
     public ServerArchitecture Architecture { get; set; }
     public string? DiscordClientId { get; set; }
+    public WebPermissions? Permissions { get; set; }
 }
 
 public class LoginRequest
@@ -45,6 +46,7 @@ public class LoginResponse
     public string? Username { get; set; }
     public string? AuthMethod { get; set; }
     public string? AvatarUrl { get; set; }
+    public WebPermissions? Permissions { get; set; }
 }
 
 public class SetupWizardRequest

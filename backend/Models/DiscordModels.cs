@@ -92,17 +92,48 @@ public class ManualLinkRequest
     public string DiscordTag { get; set; } = string.Empty;
 }
 
+public class WebPermissions
+{
+    public bool AllowDashboardLogin { get; set; } = false;
+    public bool IsSuperAdmin { get; set; } = false;
+    public bool CanControlCluster { get; set; } = false;
+    public bool CanManageNodes { get; set; } = false;
+    public bool CanAccessConsole { get; set; } = false;
+    public bool CanManageWorlds { get; set; } = false;
+    public bool CanManagePlugins { get; set; } = false;
+    public bool CanManageDiscord { get; set; } = false;
+
+    public static WebPermissions FullAdmin => new()
+    {
+        AllowDashboardLogin = true,
+        IsSuperAdmin = true,
+        CanControlCluster = true,
+        CanManageNodes = true,
+        CanAccessConsole = true,
+        CanManageWorlds = true,
+        CanManagePlugins = true,
+        CanManageDiscord = true
+    };
+}
+
 public class DiscordRoleMapping
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     public string DiscordRoleId { get; set; } = string.Empty;
     public string DiscordRoleName { get; set; } = string.Empty;
     public int DiscordRoleColor { get; set; }
+    
+    // Minecraft In-Game Permissions & Settings
     public string MinecraftGroup { get; set; } = "default"; // e.g. "admin", "moderator", "vip", "booster", "builder"
     public string? Prefix { get; set; } // e.g. "&b[VIP] ", "&c[Admin] "
     public int Priority { get; set; } = 10;
     public bool AutoSync { get; set; } = true;
-    public string? CustomCommand { get; set; } // e.g. "lp user {player} parent set {group}"
+    public string? CustomCommand { get; set; } // e.g. "op {player}" or "lp user {player} parent set {group}"
+    public bool IsOperator { get; set; } = false; // Grants vanilla /op {player}
+    public bool AllowMinecraftJoin { get; set; } = true; // Auto-whitelist
+
+    // Web Dashboard Permissions
+    public WebPermissions WebPermissions { get; set; } = new();
 }
 
 public class RoleSyncResult

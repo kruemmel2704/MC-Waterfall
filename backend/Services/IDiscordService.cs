@@ -22,6 +22,7 @@ public interface IDiscordService
     // Role Synchronization (Discord -> LuckPerms / Minecraft)
     Task<List<DiscordRoleMapping>> GetRoleMappingsAsync();
     Task SaveRoleMappingsAsync(List<DiscordRoleMapping> mappings);
+    Task<List<string>> GetMemberRolesAsync(string discordUserId);
     Task<RoleSyncResult> SyncPlayerRolesAsync(string minecraftUsername);
     Task<RoleSyncResult> SyncAllPlayersRolesAsync();
 }

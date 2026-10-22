@@ -274,6 +274,45 @@ export default function App() {
   const onlineCount = nodes.filter(n => n.status === 'Online').length;
   const totalRamMb = nodes.reduce((acc, curr) => acc + (curr.memoryAllocationMb || 0), 0);
 
+  // Permission calculation based on authStatus
+  const perms = authStatus?.permissions || (authStatus?.authMethod === 'local' ? {
+    isSuperAdmin: true,
+    allowDashboardLogin: true,
+    canControlCluster: true,
+    canManageNodes: true,
+    canAccessConsole: true,
+    canManageWorlds: true,
+    canManagePlugins: true,
+    canManageDiscord: true
+  } : null);
+
+  const isSuperAdmin = !!perms?.isSuperAdmin;
+  const canControlCluster = isSuperAdmin || !!perms?.canControlCluster;
+  const canManageNodes = isSuperAdmin || !!perms?.canManageNodes;
+  const canAccessConsole = isSuperAdmin || !!perms?.canAccessConsole;
+  const canManageWorlds = isSuperAdmin || !!perms?.canManageWorlds;
+  const canManagePlugins = isSuperAdmin || !!perms?.canManagePlugins;
+  const canManageDiscord = isSuperAdmin || !!perms?.canManageDiscord;
+
+  const navigationTabs = [
+    { id: 'topology', label: 'TOPOLOGIE', icon: <WaterfallBeaconIcon size={16} />, visible: true },
+    { id: 'nodes', label: `SERVER & SSH (${nodes.length})`, icon: <GrassBlockIcon size={16} />, visible: canManageNodes },
+    { id: 'console', label: 'LIVE KONSOLE', icon: <CommandBlockIcon size={16} />, visible: canAccessConsole },
+    { id: 'portals', label: 'DIMENSIONS & PORTALS', icon: <NetherPortalIcon size={16} />, visible: canManageNodes },
+    { id: 'discord', label: 'DISCORD AUTH & OAUTH2', icon: <Shield size={16} />, visible: canManageDiscord },
+    { id: 'plugins', label: 'MODRINTH PLUGINS', icon: <Package size={16} />, visible: canManagePlugins },
+    { id: 'worlds', label: 'WELTEN & BACKUP', icon: <Compass size={16} />, visible: canManageWorlds },
+    { id: 'settings', label: 'EINSTELLUNGEN', icon: <Settings size={16} />, visible: isSuperAdmin }
+  ];
+
+  const visibleTabs = navigationTabs.filter(t => t.visible);
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.some(t => t.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [visibleTabs, activeTab]);
+
   if (isCheckingAuth) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0e13' }}>
@@ -394,15 +433,19 @@ export default function App() {
 
           {/* Global Master Cluster Controls - Desktop */}
           <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button onClick={handleStartAll} className="mc-btn mc-btn-green" title="Alle Server starten">
-              <Play size={13} /> CLUSTER STARTEN
-            </button>
-            <button onClick={handleStopAll} className="mc-btn mc-btn-red" title="Alle Server herunterfahren">
-              <Square size={13} /> STOPPEN
-            </button>
-            <button onClick={handleSyncWaterfall} className="mc-btn mc-btn-blue" title="Waterfall config.yml aktualisieren und neu laden">
-              <RotateCw size={13} /> PROXY SYNC
-            </button>
+            {canControlCluster && (
+              <>
+                <button onClick={handleStartAll} className="mc-btn mc-btn-green" title="Alle Server starten">
+                  <Play size={13} /> CLUSTER STARTEN
+                </button>
+                <button onClick={handleStopAll} className="mc-btn mc-btn-red" title="Alle Server herunterfahren">
+                  <Square size={13} /> STOPPEN
+                </button>
+                <button onClick={handleSyncWaterfall} className="mc-btn mc-btn-blue" title="Waterfall config.yml aktualisieren und neu laden">
+                  <RotateCw size={13} /> PROXY SYNC
+                </button>
+              </>
+            )}
 
             {/* Logged in Admin Pill & Logout */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '2px solid #2d303b', paddingLeft: '10px' }}>
@@ -415,9 +458,11 @@ export default function App() {
                 <span style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 'bold' }}>
                   {authStatus?.username || 'Admin'}
                 </span>
-                {authStatus?.authMethod === 'discord' && (
+                {isSuperAdmin ? (
+                  <span className="mc-badge mc-badge-gold" style={{ fontSize: '0.55rem', padding: '1px 5px' }}>👑 SUPER-ADMIN</span>
+                ) : authStatus?.authMethod === 'discord' ? (
                   <span className="mc-badge mc-badge-proxy" style={{ fontSize: '0.55rem', padding: '1px 5px' }}>DISCORD</span>
-                )}
+                ) : null}
               </div>
               <button
                 onClick={handleLogout}
@@ -456,62 +501,16 @@ export default function App() {
 
         {/* Navigation Tabs - Desktop Horizontal View */}
         <div className="desktop-only" style={{ maxWidth: '1400px', margin: '14px auto 0', display: 'flex', gap: '8px', borderTop: '2px solid #282a35', paddingTop: '10px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setActiveTab('topology')}
-            className={`mc-btn ${activeTab === 'topology' ? 'mc-btn-blue' : ''}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <WaterfallBeaconIcon size={16} /> TOPOLOGIE
-          </button>
-          <button
-            onClick={() => setActiveTab('nodes')}
-            className={`mc-btn ${activeTab === 'nodes' ? 'mc-btn-blue' : ''}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <GrassBlockIcon size={16} /> SERVER & SSH ({nodes.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('console')}
-            className={`mc-btn ${activeTab === 'console' ? 'mc-btn-blue' : ''}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <CommandBlockIcon size={16} /> LIVE KONSOLE
-          </button>
-          <button
-            onClick={() => setActiveTab('portals')}
-            className={`mc-btn ${activeTab === 'portals' ? 'mc-btn-blue' : ''}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <NetherPortalIcon size={16} /> DIMENSIONS & PORTALS
-          </button>
-          <button
-            onClick={() => setActiveTab('discord')}
-            className={`mc-btn ${activeTab === 'discord' ? 'mc-btn-blue' : 'mc-btn-purple'}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <Shield size={16} /> DISCORD AUTH & OAUTH2
-          </button>
-          <button
-            onClick={() => setActiveTab('plugins')}
-            className={`mc-btn ${activeTab === 'plugins' ? 'mc-btn-blue' : 'mc-btn-green'}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <Package size={16} /> MODRINTH PLUGINS
-          </button>
-          <button
-            onClick={() => setActiveTab('worlds')}
-            className={`mc-btn ${activeTab === 'worlds' ? 'mc-btn-blue' : 'mc-btn-gold'}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <Compass size={16} /> WELTEN & BACKUP
-          </button>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`mc-btn ${activeTab === 'settings' ? 'mc-btn-blue' : ''}`}
-            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
-          >
-            <Settings size={16} /> EINSTELLUNGEN
-          </button>
+          {visibleTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`mc-btn ${activeTab === tab.id ? 'mc-btn-blue' : ''}`}
+              style={{ padding: '6px 14px', fontSize: '0.75rem' }}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
         </div>
       </header>
 
@@ -553,7 +552,7 @@ export default function App() {
                 {authStatus?.username || 'Admin'}
               </div>
               <div style={{ fontSize: '0.62rem', color: 'var(--mc-gray)' }}>
-                {authStatus?.authMethod === 'discord' ? 'Discord OAuth2' : 'Passwort Auth'}
+                {isSuperAdmin ? '👑 Super-Admin' : authStatus?.authMethod === 'discord' ? 'Discord OAuth2' : 'Passwort Auth'}
               </div>
             </div>
           </div>
@@ -584,50 +583,43 @@ export default function App() {
         </div>
 
         {/* Cluster Action Buttons in Mobile Drawer */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-aqua)', marginBottom: '2px' }}>
-            ⚡ CLUSTER-AKTIONEN
-          </span>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+        {canControlCluster && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-aqua)', marginBottom: '2px' }}>
+              ⚡ CLUSTER-AKTIONEN
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+              <button 
+                onClick={() => { setMobileMenuOpen(false); handleStartAll(); }} 
+                className="mc-btn mc-btn-green"
+                style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center' }}
+              >
+                <Play size={13} /> STARTEN
+              </button>
+              <button 
+                onClick={() => { setMobileMenuOpen(false); handleStopAll(); }} 
+                className="mc-btn mc-btn-red"
+                style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center' }}
+              >
+                <Square size={13} /> STOPPEN
+              </button>
+            </div>
             <button 
-              onClick={() => { setMobileMenuOpen(false); handleStartAll(); }} 
-              className="mc-btn mc-btn-green"
-              style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center' }}
+              onClick={() => { setMobileMenuOpen(false); handleSyncWaterfall(); }} 
+              className="mc-btn mc-btn-blue"
+              style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center', marginTop: '2px' }}
             >
-              <Play size={13} /> STARTEN
-            </button>
-            <button 
-              onClick={() => { setMobileMenuOpen(false); handleStopAll(); }} 
-              className="mc-btn mc-btn-red"
-              style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center' }}
-            >
-              <Square size={13} /> STOPPEN
+              <RotateCw size={13} /> PROXY SYNC
             </button>
           </div>
-          <button 
-            onClick={() => { setMobileMenuOpen(false); handleSyncWaterfall(); }} 
-            className="mc-btn mc-btn-blue"
-            style={{ padding: '8px 10px', fontSize: '0.72rem', justifyContent: 'center', marginTop: '2px' }}
-          >
-            <RotateCw size={13} /> PROXY SYNC
-          </button>
-        </div>
+        )}
 
         {/* Navigation Tabs in Mobile Drawer */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
           <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-aqua)', marginBottom: '2px' }}>
             🧭 DIMENSIONEN & NAVIGATION
           </span>
-          {[
-            { id: 'topology', label: 'TOPOLOGIE', icon: <WaterfallBeaconIcon size={16} /> },
-            { id: 'nodes', label: `SERVER & SSH (${nodes.length})`, icon: <GrassBlockIcon size={16} /> },
-            { id: 'console', label: 'LIVE KONSOLE', icon: <CommandBlockIcon size={16} /> },
-            { id: 'portals', label: 'DIMENSIONS & PORTALS', icon: <NetherPortalIcon size={16} /> },
-            { id: 'discord', label: 'DISCORD AUTH & OAUTH2', icon: <Shield size={16} /> },
-            { id: 'plugins', label: 'MODRINTH PLUGINS', icon: <Package size={16} /> },
-            { id: 'worlds', label: 'WELTEN & BACKUP', icon: <Compass size={16} /> },
-            { id: 'settings', label: 'EINSTELLUNGEN', icon: <Settings size={16} /> }
-          ].map(tab => {
+          {visibleTabs.map(tab => {
             const isActive = activeTab === tab.id;
             return (
               <button

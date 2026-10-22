@@ -587,7 +587,24 @@ public class DiscordService : IDiscordService
     public async Task<bool> IsPlayerAuthorizedAsync(string minecraftUsername)
     {
         var links = await GetLinkedPlayersAsync();
-        return links.Any(l => l.MinecraftUsername.Equals(minecraftUsername, StringComparison.OrdinalIgnoreCase) && l.IsWhitelisted);
+        var link = links.FirstOrDefault(l => l.MinecraftUsername.Equals(minecraftUsername, StringComparison.OrdinalIgnoreCase) && l.IsWhitelisted);
+        if (link == null) return false;
+
+        var config = await GetConfigAsync();
+        if (!config.EnableRoleSync || config.RoleMappings == null || config.RoleMappings.Count == 0)
+        {
+            return true;
+        }
+
+        var userRoles = await GetMemberRolesAsync(link.DiscordId);
+        var mappings = config.RoleMappings.Where(m => m.AutoSync).OrderByDescending(m => m.Priority).ToList();
+        var matched = mappings.FirstOrDefault(m => userRoles.Contains(m.DiscordRoleId));
+        if (matched != null)
+        {
+            return matched.AllowMinecraftJoin;
+        }
+
+        return true;
     }
 
     public Task<MinecraftOAuthSession> CreateOAuthSessionAsync(string minecraftUsername)
@@ -620,6 +637,45 @@ public class DiscordService : IDiscordService
         await SaveConfigAsync(config);
     }
 
+    public async Task<List<string>> GetMemberRolesAsync(string discordUserId)
+    {
+        var config = await GetConfigAsync();
+        var cleanToken = SanitizeAscii(config.BotToken);
+        if (string.IsNullOrWhiteSpace(config.GuildId) || string.IsNullOrWhiteSpace(cleanToken) || string.IsNullOrWhiteSpace(discordUserId))
+        {
+            return new List<string>();
+        }
+
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"https://discord.com/api/v10/guilds/{config.GuildId}/members/{discordUserId}");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bot", cleanToken);
+            var res = await _httpClient.SendAsync(req);
+            if (res.IsSuccessStatusCode)
+            {
+                var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                if (doc.TryGetProperty("roles", out var rProp) && rProp.ValueKind == JsonValueKind.Array)
+                {
+                    return rProp.EnumerateArray()
+                        .Select(r => r.GetString())
+                        .Where(r => !string.IsNullOrEmpty(r))
+                        .Select(r => r!)
+                        .ToList();
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Discord Member API returned status {StatusCode} for member {UserId}", res.StatusCode, discordUserId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query Discord member roles for {UserId}", discordUserId);
+        }
+
+        return new List<string>();
+    }
+
     public async Task<RoleSyncResult> SyncPlayerRolesAsync(string minecraftUsername)
     {
         var links = await GetLinkedPlayersAsync();
@@ -642,40 +698,8 @@ public class DiscordService : IDiscordService
         }
 
         // Fetch user's Discord roles from Discord Guild Member API
-        var userRoleIds = new HashSet<string>();
-        var cleanToken = SanitizeAscii(config.BotToken);
-        if (string.IsNullOrWhiteSpace(cleanToken))
-        {
-            return new RoleSyncResult { Success = false, Message = "Discord Bot-Token fehlt oder ist ungültig." };
-        }
-
-        try
-        {
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"https://discord.com/api/v10/guilds/{config.GuildId}/members/{link.DiscordId}");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bot", cleanToken);
-            var res = await _httpClient.SendAsync(req);
-            if (res.IsSuccessStatusCode)
-            {
-                var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
-                if (doc.TryGetProperty("roles", out var rProp) && rProp.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var r in rProp.EnumerateArray())
-                    {
-                        var rid = r.GetString();
-                        if (!string.IsNullOrEmpty(rid)) userRoleIds.Add(rid);
-                    }
-                }
-            }
-            else
-            {
-                return new RoleSyncResult { Success = false, Message = $"Discord-Mitglied konnte nicht abgefragt werden (Status {(int)res.StatusCode})." };
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to query Discord member {UserId}", link.DiscordId);
-            return new RoleSyncResult { Success = false, Message = $"Discord-Verbindungsfehler: {ex.Message}" };
-        }
+        var userRoles = await GetMemberRolesAsync(link.DiscordId);
+        var userRoleIds = userRoles.ToHashSet();
 
         // Find highest priority matching mapping
         var matchedMapping = mappings.FirstOrDefault(m => userRoleIds.Contains(m.DiscordRoleId));
@@ -686,11 +710,24 @@ public class DiscordService : IDiscordService
 
         // Commands to execute on server(s)
         var commands = new List<string>();
+
+        // 1. Whitelist handling based on role mapping
+        if (matchedMapping != null && !matchedMapping.AllowMinecraftJoin)
+        {
+            commands.Add($"whitelist remove {link.MinecraftUsername}");
+            commands.Add($"kick {link.MinecraftUsername} §cDeine Discord-Rolle hat keine Server-Beitrittsberechtigung!");
+        }
+        else
+        {
+            commands.Add($"whitelist add {link.MinecraftUsername}");
+        }
+
+        // 2. Custom Command or OP / LuckPerms Group
         if (matchedMapping != null && !string.IsNullOrWhiteSpace(matchedMapping.CustomCommand))
         {
             commands.Add(matchedMapping.CustomCommand.Replace("{player}", link.MinecraftUsername).Replace("{group}", matchedMapping.MinecraftGroup));
         }
-        else if (assignedGroup.Equals("op", StringComparison.OrdinalIgnoreCase) || assignedGroup.Equals("operator", StringComparison.OrdinalIgnoreCase))
+        else if (matchedMapping?.IsOperator == true || assignedGroup.Equals("op", StringComparison.OrdinalIgnoreCase) || assignedGroup.Equals("operator", StringComparison.OrdinalIgnoreCase))
         {
             commands.Add($"op {link.MinecraftUsername}");
             commands.Add($"lp user {link.MinecraftUsername} parent set admin");
@@ -701,6 +738,7 @@ public class DiscordService : IDiscordService
             commands.Add($"lp user {link.MinecraftUsername} parent set {assignedGroup}");
         }
 
+        // 3. Prefix if defined
         if (matchedMapping != null && !string.IsNullOrWhiteSpace(matchedMapping.Prefix))
         {
             commands.Add($"lp group {assignedGroup} meta setprefix {matchedMapping.Priority} \"{matchedMapping.Prefix}\"");

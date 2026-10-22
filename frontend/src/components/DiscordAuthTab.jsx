@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Key, Shield, CheckCircle2, AlertCircle, RefreshCw, ExternalLink, 
-  Trash2, Plus, Sparkles, UserCheck, ShieldCheck, Copy, Check, Zap, Users, Crown
+  Trash2, Plus, Sparkles, UserCheck, ShieldCheck, Copy, Check, Zap, Users, Crown,
+  Globe, Terminal, Compass, Server, Box, Edit3, Lock, ShieldAlert
 } from 'lucide-react';
 import { CommandBlockIcon, RedstoneTorchIcon, GrassBlockIcon, WaterfallBeaconIcon } from './MinecraftIcons';
 
@@ -28,17 +29,171 @@ export default function DiscordAuthTab() {
   const [syncingRoles, setSyncingRoles] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [showMappingModal, setShowMappingModal] = useState(false);
-  const [mappingForm, setMappingForm] = useState({
+
+  const emptyMapping = {
+    id: '',
     discordRoleId: '',
     discordRoleName: '',
     discordRoleColor: 0,
     minecraftGroup: 'vip',
     prefix: '&b[VIP] ',
-    priority: 10,
+    priority: 20,
     autoSync: true,
     customCommand: '',
-    isOp: false
-  });
+    isOperator: false,
+    allowMinecraftJoin: true,
+    webPermissions: {
+      allowDashboardLogin: false,
+      isSuperAdmin: false,
+      canControlCluster: false,
+      canManageNodes: false,
+      canAccessConsole: false,
+      canManageWorlds: false,
+      canManagePlugins: false,
+      canManageDiscord: false
+    }
+  };
+
+  const [mappingForm, setMappingForm] = useState(emptyMapping);
+
+  const applyPreset = (presetName) => {
+    switch (presetName) {
+      case 'superadmin':
+        setMappingForm(prev => ({
+          ...prev,
+          minecraftGroup: 'admin',
+          prefix: '&c[Admin] ',
+          priority: 100,
+          customCommand: '',
+          isOperator: true,
+          allowMinecraftJoin: true,
+          webPermissions: {
+            allowDashboardLogin: true,
+            isSuperAdmin: true,
+            canControlCluster: true,
+            canManageNodes: true,
+            canAccessConsole: true,
+            canManageWorlds: true,
+            canManagePlugins: true,
+            canManageDiscord: true
+          }
+        }));
+        break;
+      case 'mod':
+        setMappingForm(prev => ({
+          ...prev,
+          minecraftGroup: 'moderator',
+          prefix: '&9[Mod] ',
+          priority: 50,
+          customCommand: '',
+          isOperator: false,
+          allowMinecraftJoin: true,
+          webPermissions: {
+            allowDashboardLogin: true,
+            isSuperAdmin: false,
+            canControlCluster: true,
+            canManageNodes: false,
+            canAccessConsole: true,
+            canManageWorlds: true,
+            canManagePlugins: true,
+            canManageDiscord: false
+          }
+        }));
+        break;
+      case 'builder':
+        setMappingForm(prev => ({
+          ...prev,
+          minecraftGroup: 'builder',
+          prefix: '&a[Builder] ',
+          priority: 30,
+          customCommand: '',
+          isOperator: false,
+          allowMinecraftJoin: true,
+          webPermissions: {
+            allowDashboardLogin: true,
+            isSuperAdmin: false,
+            canControlCluster: false,
+            canManageNodes: false,
+            canAccessConsole: false,
+            canManageWorlds: true,
+            canManagePlugins: false,
+            canManageDiscord: false
+          }
+        }));
+        break;
+      case 'vip':
+        setMappingForm(prev => ({
+          ...prev,
+          minecraftGroup: 'vip',
+          prefix: '&b[VIP] ',
+          priority: 20,
+          customCommand: '',
+          isOperator: false,
+          allowMinecraftJoin: true,
+          webPermissions: {
+            allowDashboardLogin: false,
+            isSuperAdmin: false,
+            canControlCluster: false,
+            canManageNodes: false,
+            canAccessConsole: false,
+            canManageWorlds: false,
+            canManagePlugins: false,
+            canManageDiscord: false
+          }
+        }));
+        break;
+      case 'player':
+        setMappingForm(prev => ({
+          ...prev,
+          minecraftGroup: 'default',
+          prefix: '',
+          priority: 10,
+          customCommand: '',
+          isOperator: false,
+          allowMinecraftJoin: true,
+          webPermissions: {
+            allowDashboardLogin: false,
+            isSuperAdmin: false,
+            canControlCluster: false,
+            canManageNodes: false,
+            canAccessConsole: false,
+            canManageWorlds: false,
+            canManagePlugins: false,
+            canManageDiscord: false
+          }
+        }));
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleEditRoleMapping = (m) => {
+    setMappingForm({
+      id: m.id,
+      discordRoleId: m.discordRoleId,
+      discordRoleName: m.discordRoleName || '',
+      discordRoleColor: m.discordRoleColor || 0,
+      minecraftGroup: m.minecraftGroup || 'default',
+      prefix: m.prefix || '',
+      priority: m.priority ?? 10,
+      autoSync: m.autoSync ?? true,
+      customCommand: m.customCommand || '',
+      isOperator: !!m.isOperator,
+      allowMinecraftJoin: m.allowMinecraftJoin !== false,
+      webPermissions: {
+        allowDashboardLogin: !!m.webPermissions?.allowDashboardLogin,
+        isSuperAdmin: !!m.webPermissions?.isSuperAdmin,
+        canControlCluster: !!m.webPermissions?.canControlCluster,
+        canManageNodes: !!m.webPermissions?.canManageNodes,
+        canAccessConsole: !!m.webPermissions?.canAccessConsole,
+        canManageWorlds: !!m.webPermissions?.canManageWorlds,
+        canManagePlugins: !!m.webPermissions?.canManagePlugins,
+        canManageDiscord: !!m.webPermissions?.canManageDiscord
+      }
+    });
+    setShowMappingModal(true);
+  };
 
   const [enforcingWhitelist, setEnforcingWhitelist] = useState(false);
   const [installingSrv, setInstallingSrv] = useState(false);
@@ -106,7 +261,23 @@ export default function DiscordAuthTab() {
       return;
     }
 
-    const updated = [...roleMappings, { ...mappingForm, id: Math.random().toString(36).slice(2, 9) }];
+    const itemToSave = {
+      ...mappingForm,
+      id: mappingForm.id || Math.random().toString(36).slice(2, 9),
+      priority: Number(mappingForm.priority) || 10,
+      webPermissions: {
+        ...mappingForm.webPermissions,
+        allowDashboardLogin: mappingForm.webPermissions?.isSuperAdmin ? true : !!mappingForm.webPermissions?.allowDashboardLogin
+      }
+    };
+
+    let updated;
+    if (mappingForm.id) {
+      updated = roleMappings.map(m => m.id === mappingForm.id ? itemToSave : m);
+    } else {
+      updated = [...roleMappings, itemToSave];
+    }
+
     try {
       const res = await fetch('/api/discord/roles/mappings', {
         method: 'POST',
@@ -116,7 +287,7 @@ export default function DiscordAuthTab() {
       if (res.ok) {
         setRoleMappings(updated);
         setShowMappingModal(false);
-        setMessage({ type: 'success', text: 'Rollen-Zuordnung erfolgreich hinzugefügt!' });
+        setMessage({ type: 'success', text: 'Rollen-Zuordnung erfolgreich gespeichert!' });
       }
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
@@ -814,24 +985,13 @@ export default function DiscordAuthTab() {
                 if (guildInfo?.roles?.length > 0) {
                   const firstRole = guildInfo.roles[0];
                   setMappingForm({
+                    ...emptyMapping,
                     discordRoleId: firstRole.id,
                     discordRoleName: firstRole.name,
-                    discordRoleColor: firstRole.color,
-                    minecraftGroup: 'vip',
-                    prefix: '&b[VIP] ',
-                    priority: 10,
-                    autoSync: true
+                    discordRoleColor: firstRole.color
                   });
                 } else {
-                  setMappingForm({
-                    discordRoleId: '',
-                    discordRoleName: '',
-                    discordRoleColor: 0,
-                    minecraftGroup: 'vip',
-                    prefix: '&b[VIP] ',
-                    priority: 10,
-                    autoSync: true
-                  });
+                  setMappingForm(emptyMapping);
                 }
                 setShowMappingModal(true);
               }}
@@ -879,10 +1039,10 @@ export default function DiscordAuthTab() {
           </div>
         )}
 
-        {/* Explain LuckPerms command mechanism */}
+        {/* Explain Unified Role Permissions */}
         <div style={{
-          background: 'rgba(255, 170, 0, 0.08)',
-          border: '1px solid rgba(255, 170, 0, 0.3)',
+          background: 'rgba(85, 85, 255, 0.08)',
+          border: '1px solid rgba(85, 85, 255, 0.3)',
           padding: '12px 14px',
           marginBottom: '16px',
           fontSize: '0.8rem',
@@ -891,16 +1051,15 @@ export default function DiscordAuthTab() {
           gap: '12px',
           alignItems: 'flex-start'
         }}>
-          <ShieldCheck size={20} color="var(--mc-gold)" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <ShieldCheck size={20} color="var(--mc-aqua)" style={{ flexShrink: 0, marginTop: '2px' }} />
           <div>
-            <strong style={{ color: 'var(--mc-gold)' }}>Automatische LuckPerms-Verteilung:</strong>
+            <strong style={{ color: 'var(--mc-aqua)' }}>Zentrale Discord-Rechteverwaltung (Web & Minecraft):</strong>
             <p style={{ margin: '4px 0 0 0', lineHeight: 1.4 }}>
-              Sobald ein Spieler seinen Minecraft-Account per Discord OAuth2 verknüpft oder beitritt, ermittelt das System seine Discord-Rollen und führt auf dem Minecraft-Cluster automatisch:
+              Wähle hier eine Discord-Rolle aus und konfiguriere exakt, was Mitglieder mit dieser Rolle tun dürfen:
               <br />
-              <code className="font-mono" style={{ color: 'var(--mc-aqua)', background: '#111', padding: '2px 6px', borderRadius: '3px', display: 'inline-block', marginTop: '4px' }}>
-                lp user &lt;Spieler&gt; parent set &lt;Gruppe&gt;
-              </code>
-              {' '}sowie Prefix-Definitionen aus. Bei mehreren Rollen gewinnt die mit der höchsten Priorität!
+              • <strong>Auf der Webseite:</strong> Dashboard-Login, Server starten/stoppen, Live-Konsole, Backups/Welten, Plugins & Einstellungen.
+              <br />
+              • <strong>Auf dem Server:</strong> Whitelist-Beitritt, Vanilla-Operator (/op), LuckPerms-Rang & Chat-Präfix.
             </p>
           </div>
         </div>
@@ -918,7 +1077,7 @@ export default function DiscordAuthTab() {
               Noch keine Rollen-Verknüpfungen angelegt.
             </p>
             <p style={{ color: '#888', fontSize: '0.75rem', marginTop: '4px' }}>
-              Klicke oben auf <strong>"ROLLE VERKNÜPFEN"</strong>, um Discord-Rollen (z.B. Moderator, VIP, Booster) mit Minecraft LuckPerms-Gruppen zu verbinden.
+              Klicke oben auf <strong>"ROLLE VERKNÜPFEN"</strong>, um Discord-Rollen Berechtigungen für das Dashboard und den Minecraft-Server zu erteilen.
             </p>
           </div>
         ) : (
@@ -927,70 +1086,125 @@ export default function DiscordAuthTab() {
               <thead>
                 <tr style={{ background: '#12141a', borderBottom: '2px solid #2e3347' }}>
                   <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>DISCORD ROLLE</th>
-                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>MINECRAFT GRUPPE (LUCKPERMS)</th>
-                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>CHAT-PRÄFIX</th>
-                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>PRIORITÄT</th>
-                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>STATUS</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>WEBSEITE (DASHBOARD)</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>SERVER (MINECRAFT)</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>WHITELIST</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>PRIO</th>
                   <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--mc-yellow)', fontWeight: 600 }}>AKTION</th>
                 </tr>
               </thead>
               <tbody>
-                {roleMappings.map((m) => (
-                  <tr key={m.id} style={{ borderBottom: '1px solid #1f2330', background: '#0e1017' }}>
-                    <td style={{ padding: '10px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          background: m.discordRoleColor ? `#${m.discordRoleColor.toString(16).padStart(6, '0')}` : 'var(--mc-aqua)'
-                        }} />
-                        <strong style={{ color: '#fff' }}>@{m.discordRoleName || m.discordRoleId}</strong>
-                        <span className="font-mono" style={{ fontSize: '0.7rem', color: 'var(--mc-gray)' }}>({m.discordRoleId})</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <span className="mc-badge mc-badge-diamond" style={{ fontSize: '0.75rem', textTransform: 'lowercase' }}>
-                        {m.minecraftGroup}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 14px' }} className="font-mono">
-                      {m.prefix ? (
-                        <span style={{
-                          background: '#1a1d26',
-                          border: '1px solid #333',
-                          padding: '2px 8px',
-                          borderRadius: '3px',
-                          color: 'var(--mc-yellow)',
-                          fontSize: '0.8rem'
-                        }}>
-                          {m.prefix}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--mc-gray)', fontSize: '0.75rem' }}>-</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '10px 14px' }} className="font-mono">
-                      <span style={{ color: 'var(--mc-aqua)', fontWeight: 700 }}>{m.priority}</span>
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <span className="mc-badge mc-badge-overworld" style={{ fontSize: '0.65rem' }}>
-                        AKTIV
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDeleteRoleMapping(m.id)}
-                        className="mc-btn mc-btn-red"
-                        style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                        title="Verknüpfung löschen"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {roleMappings.map((m) => {
+                  const wp = m.webPermissions || {};
+                  return (
+                    <tr key={m.id} style={{ borderBottom: '1px solid #1f2330', background: '#0e1017' }}>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: m.discordRoleColor ? `#${m.discordRoleColor.toString(16).padStart(6, '0')}` : 'var(--mc-aqua)'
+                          }} />
+                          <strong style={{ color: '#fff' }}>@{m.discordRoleName || m.discordRoleId}</strong>
+                          <span className="font-mono" style={{ fontSize: '0.7rem', color: 'var(--mc-gray)' }}>({m.discordRoleId})</span>
+                        </div>
+                      </td>
+                      
+                      {/* Web Permissions Column */}
+                      <td style={{ padding: '10px 14px' }}>
+                        {wp.isSuperAdmin ? (
+                          <span className="mc-badge mc-badge-gold" style={{ fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Crown size={12} /> SUPER-ADMIN (VOLL)
+                          </span>
+                        ) : wp.allowDashboardLogin ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {wp.canControlCluster && <span className="mc-badge mc-badge-overworld" style={{ fontSize: '0.62rem' }}>⚡ CLUSTER</span>}
+                            {wp.canManageNodes && <span className="mc-badge mc-badge-diamond" style={{ fontSize: '0.62rem' }}>🖥️ SERVER</span>}
+                            {wp.canAccessConsole && <span className="mc-badge mc-badge-proxy" style={{ fontSize: '0.62rem' }}>📟 KONSOLE</span>}
+                            {wp.canManageWorlds && <span className="mc-badge mc-badge-gold" style={{ fontSize: '0.62rem' }}>🌍 WELTEN</span>}
+                            {wp.canManagePlugins && <span className="mc-badge mc-badge-nether" style={{ fontSize: '0.62rem' }}>📦 PLUGINS</span>}
+                            {wp.canManageDiscord && <span className="mc-badge mc-badge-purple" style={{ fontSize: '0.62rem' }}>🛡️ DISCORD</span>}
+                            {!wp.canControlCluster && !wp.canManageNodes && !wp.canAccessConsole && !wp.canManageWorlds && !wp.canManagePlugins && !wp.canManageDiscord && (
+                              <span className="mc-badge mc-badge-overworld" style={{ fontSize: '0.62rem' }}>NUR LOGIN</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--mc-gray)', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Lock size={12} /> Kein Web-Zugriff
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Minecraft Server In-Game Column */}
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          {m.isOperator && (
+                            <span className="mc-badge mc-badge-red" style={{ fontSize: '0.68rem', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                              <Crown size={11} /> OP
+                            </span>
+                          )}
+                          <span className="mc-badge mc-badge-diamond" style={{ fontSize: '0.72rem', textTransform: 'lowercase' }}>
+                            {m.minecraftGroup || 'default'}
+                          </span>
+                          {m.prefix && (
+                            <span className="font-mono" style={{
+                              background: '#1a1d26',
+                              border: '1px solid #333',
+                              padding: '1px 6px',
+                              borderRadius: '3px',
+                              color: 'var(--mc-yellow)',
+                              fontSize: '0.72rem'
+                            }}>
+                              {m.prefix}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Whitelist Column */}
+                      <td style={{ padding: '10px 14px' }}>
+                        {m.allowMinecraftJoin !== false ? (
+                          <span className="mc-badge mc-badge-overworld" style={{ fontSize: '0.65rem' }}>
+                            ✔ ERLAUBT
+                          </span>
+                        ) : (
+                          <span className="mc-badge mc-badge-red" style={{ fontSize: '0.65rem' }}>
+                            ⛔ GESPERRT
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Priority Column */}
+                      <td style={{ padding: '10px 14px' }} className="font-mono">
+                        <span style={{ color: 'var(--mc-aqua)', fontWeight: 700 }}>{m.priority}</span>
+                      </td>
+
+                      {/* Action Column */}
+                      <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                          <button
+                            onClick={() => handleEditRoleMapping(m)}
+                            className="mc-btn mc-btn-blue"
+                            style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                            title="Berechtigungen bearbeiten"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRoleMapping(m.id)}
+                            className="mc-btn mc-btn-red"
+                            style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                            title="Verknüpfung löschen"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1063,7 +1277,7 @@ export default function DiscordAuthTab() {
         </div>
       )}
 
-      {/* Add Role Mapping Modal */}
+      {/* Add / Edit Role Mapping Modal */}
       {showMappingModal && (
         <div style={{
           position: 'fixed',
@@ -1078,13 +1292,30 @@ export default function DiscordAuthTab() {
           zIndex: 1000,
           padding: '20px'
         }}>
-          <div className="mc-modal" style={{ width: '100%', maxWidth: '540px', padding: '24px' }}>
-            <h3 className="mc-title" style={{ fontSize: '0.95rem', color: '#fff', marginBottom: '14px' }}>
-              DISCORD ⬌ MINECRAFT ROLLE VERKNÜPFEN
-            </h3>
+          <div className="mc-modal" style={{ width: '100%', maxWidth: '720px', maxHeight: '90vh', overflowY: 'auto', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 className="mc-title" style={{ fontSize: '1rem', color: '#fff', margin: 0 }}>
+                  {mappingForm.id ? 'DISCORD-ROLLE BEARBEITEN' : 'DISCORD-ROLLE KONFIGURIEREN'}
+                </h3>
+                <span style={{ fontSize: '0.72rem', color: 'var(--mc-gray)' }}>
+                  Lege fest, was diese Discord-Rolle auf der Webseite und auf dem Minecraft-Server kann
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMappingModal(false)}
+                className="mc-btn mc-btn-red"
+                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
             <form onSubmit={handleSaveRoleMapping}>
-              <div style={{ marginBottom: '12px' }}>
-                <label className="mc-label">DISCORD ROLLE AUSWÄHLEN</label>
+              {/* Discord Role Select */}
+              <div style={{ marginBottom: '16px', background: '#11131c', border: '2px solid #2e3347', padding: '14px' }}>
+                <label className="mc-label" style={{ color: 'var(--mc-yellow)' }}>1. DISCORD ROLLE AUSWÄHLEN</label>
                 {guildInfo?.roles?.length > 0 ? (
                   <select
                     className="mc-input"
@@ -1098,7 +1329,7 @@ export default function DiscordAuthTab() {
                         discordRoleColor: selectedRole?.color || 0
                       });
                     }}
-                    style={{ width: '100%', background: '#12141a', color: '#fff' }}
+                    style={{ width: '100%', background: '#12141a', color: '#fff', marginTop: '6px' }}
                   >
                     {guildInfo.roles.map(r => (
                       <option key={r.id} value={r.id}>
@@ -1113,143 +1344,354 @@ export default function DiscordAuthTab() {
                     placeholder="Discord Role ID (z.B. 1234567890)"
                     value={mappingForm.discordRoleId}
                     onChange={(e) => setMappingForm({ ...mappingForm, discordRoleId: e.target.value, discordRoleName: 'Benutzerdefiniert' })}
+                    style={{ marginTop: '6px' }}
                     required
                   />
                 )}
-              </div>
 
-              {/* Presets */}
-              <div style={{ marginBottom: '14px' }}>
-                <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-gray)' }}>SCHNELL-VORLAGEN:</span>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setMappingForm({
-                      ...mappingForm,
-                      minecraftGroup: 'op',
-                      prefix: '&c[Admin] ',
-                      priority: 100,
-                      customCommand: 'op {player}',
-                      isOp: true
-                    })}
-                    className="mc-btn mc-btn-red"
-                    style={{ padding: '4px 8px', fontSize: '0.68rem' }}
-                  >
-                    👑 OP / ADMIN
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMappingForm({
-                      ...mappingForm,
-                      minecraftGroup: 'moderator',
-                      prefix: '&9[Mod] ',
-                      priority: 50,
-                      customCommand: '',
-                      isOp: false
-                    })}
-                    className="mc-btn mc-btn-blue"
-                    style={{ padding: '4px 8px', fontSize: '0.68rem' }}
-                  >
-                    🛡️ MODERATOR
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMappingForm({
-                      ...mappingForm,
-                      minecraftGroup: 'vip',
-                      prefix: '&b[VIP] ',
-                      priority: 20,
-                      customCommand: '',
-                      isOp: false
-                    })}
-                    className="mc-btn mc-btn-gold"
-                    style={{ padding: '4px 8px', fontSize: '0.68rem' }}
-                  >
-                    💎 VIP
-                  </button>
+                {/* Presets */}
+                <div style={{ marginTop: '12px' }}>
+                  <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-gray)' }}>SCHNELL-VORLAGEN ANWENDEN:</span>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('superadmin')}
+                      className="mc-btn mc-btn-red"
+                      style={{ padding: '4px 10px', fontSize: '0.7rem' }}
+                      title="Web-Vollzugriff + In-Game OP"
+                    >
+                      👑 SUPER-ADMIN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('mod')}
+                      className="mc-btn mc-btn-blue"
+                      style={{ padding: '4px 10px', fontSize: '0.7rem' }}
+                      title="Web Konsole/Welten/Plugins + In-Game Mod"
+                    >
+                      🛡️ MODERATOR
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('builder')}
+                      className="mc-btn mc-btn-green"
+                      style={{ padding: '4px 10px', fontSize: '0.7rem' }}
+                      title="Web Welten + In-Game Builder"
+                    >
+                      🛠️ BUILDER
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('vip')}
+                      className="mc-btn mc-btn-gold"
+                      style={{ padding: '4px 10px', fontSize: '0.7rem' }}
+                      title="Kein Web-Login + In-Game VIP"
+                    >
+                      💎 VIP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('player')}
+                      className="mc-btn"
+                      style={{ padding: '4px 10px', fontSize: '0.7rem' }}
+                      title="Nur Whitelist-Beitritt"
+                    >
+                      👥 SPIELER
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* OP Toggle Box */}
+              {/* SECTION 1: WEB DASHBOARD BERECHTIGUNGEN */}
               <div style={{
-                background: mappingForm.isOp ? 'rgba(255, 85, 85, 0.15)' : '#10121a',
-                border: `2px solid ${mappingForm.isOp ? 'var(--mc-red)' : '#282b3a'}`,
-                padding: '10px 12px',
-                marginBottom: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                cursor: 'pointer'
-              }}
-              onClick={() => {
-                const nextOp = !mappingForm.isOp;
-                setMappingForm({
-                  ...mappingForm,
-                  isOp: nextOp,
-                  customCommand: nextOp ? (mappingForm.customCommand || 'op {player}') : (mappingForm.customCommand === 'op {player}' ? '' : mappingForm.customCommand),
-                  minecraftGroup: nextOp && mappingForm.minecraftGroup === 'vip' ? 'op' : mappingForm.minecraftGroup
-                });
+                marginBottom: '16px',
+                background: '#11131c',
+                border: '2px solid #2e3347',
+                padding: '16px'
               }}>
-                <input
-                  type="checkbox"
-                  id="opToggle"
-                  checked={mappingForm.isOp}
-                  onChange={() => {}} // Handled by parent div
-                  style={{ width: '16px', height: '16px', accentColor: 'var(--mc-red)', cursor: 'pointer' }}
-                />
-                <label htmlFor="opToggle" style={{ cursor: 'pointer', margin: 0, fontSize: '0.75rem', color: mappingForm.isOp ? '#fff' : 'var(--mc-gray)', fontWeight: mappingForm.isOp ? 'bold' : 'normal' }}>
-                  👑 Spieler zum vollen Minecraft Operator machen (/op &#123;player&#125;)
-                </label>
-              </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <Globe size={18} color="var(--mc-aqua)" />
+                  <span className="mc-title" style={{ fontSize: '0.85rem', color: 'var(--mc-aqua)', margin: 0 }}>
+                    2. BERECHTIGUNGEN AUF DER WEBSEITE (DASHBOARD)
+                  </span>
+                </div>
 
-              <div style={{ marginBottom: '12px' }}>
-                <label className="mc-label">MINECRAFT RANG / GRUPPEN-NAME (LUCKPERMS)</label>
-                <input
-                  type="text"
-                  className="mc-input"
-                  placeholder="z.B. op, admin, mod, vip, default"
-                  value={mappingForm.minecraftGroup}
-                  onChange={(e) => setMappingForm({ ...mappingForm, minecraftGroup: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label className="mc-label">CHAT-PRÄFIX (FARBCODES ERLAUBT, Z.B. &b[VIP] )</label>
-                <input
-                  type="text"
-                  className="mc-input font-mono"
-                  placeholder="z.B. &b[VIP]  oder &c[Admin] "
-                  value={mappingForm.prefix}
-                  onChange={(e) => setMappingForm({ ...mappingForm, prefix: e.target.value })}
-                />
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label className="mc-label">EIGENER SERVER-BEFEHL (OPTIONAL, {`{player}`} WIRD ERSETZT)</label>
-                <input
-                  type="text"
-                  className="mc-input font-mono"
-                  placeholder="z.B. op {player} oder lp user {player} parent set admin"
-                  value={mappingForm.customCommand}
-                  onChange={(e) => setMappingForm({ 
-                    ...mappingForm, 
-                    customCommand: e.target.value,
-                    isOp: e.target.value.includes('op {player}')
+                {/* Allow Dashboard Login Toggle */}
+                <div 
+                  onClick={() => setMappingForm({
+                    ...mappingForm,
+                    webPermissions: {
+                      ...mappingForm.webPermissions,
+                      allowDashboardLogin: !mappingForm.webPermissions?.allowDashboardLogin
+                    }
                   })}
-                />
+                  style={{
+                    background: mappingForm.webPermissions?.allowDashboardLogin ? 'rgba(85, 255, 85, 0.1)' : '#0e1017',
+                    border: `2px solid ${mappingForm.webPermissions?.allowDashboardLogin ? 'var(--mc-green)' : '#2e3347'}`,
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    cursor: 'pointer',
+                    marginBottom: '12px'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!mappingForm.webPermissions?.allowDashboardLogin}
+                    onChange={() => {}}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--mc-green)', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: '0.8rem', color: mappingForm.webPermissions?.allowDashboardLogin ? '#fff' : 'var(--mc-gray)' }}>
+                      Darf sich im Web-Dashboard einloggen
+                    </strong>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--mc-gray)' }}>
+                      Erlaubt Mitgliedern dieser Discord-Rolle die Anmeldung am Management-Panel via Discord OAuth2.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-permissions if login is allowed */}
+                {mappingForm.webPermissions?.allowDashboardLogin && (
+                  <div style={{ paddingLeft: '8px', borderLeft: '2px solid var(--mc-green)' }}>
+                    {/* Super Admin Toggle */}
+                    <div
+                      onClick={() => {
+                        const nextSuper = !mappingForm.webPermissions?.isSuperAdmin;
+                        setMappingForm({
+                          ...mappingForm,
+                          webPermissions: {
+                            ...mappingForm.webPermissions,
+                            isSuperAdmin: nextSuper,
+                            canControlCluster: nextSuper ? true : mappingForm.webPermissions?.canControlCluster,
+                            canManageNodes: nextSuper ? true : mappingForm.webPermissions?.canManageNodes,
+                            canAccessConsole: nextSuper ? true : mappingForm.webPermissions?.canAccessConsole,
+                            canManageWorlds: nextSuper ? true : mappingForm.webPermissions?.canManageWorlds,
+                            canManagePlugins: nextSuper ? true : mappingForm.webPermissions?.canManagePlugins,
+                            canManageDiscord: nextSuper ? true : mappingForm.webPermissions?.canManageDiscord
+                          }
+                        });
+                      }}
+                      style={{
+                        background: mappingForm.webPermissions?.isSuperAdmin ? 'rgba(255, 170, 0, 0.15)' : '#0e1017',
+                        border: `2px solid ${mappingForm.webPermissions?.isSuperAdmin ? 'var(--mc-gold)' : '#2e3347'}`,
+                        padding: '10px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        cursor: 'pointer',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!mappingForm.webPermissions?.isSuperAdmin}
+                        onChange={() => {}}
+                        style={{ width: '18px', height: '18px', accentColor: 'var(--mc-gold)', cursor: 'pointer' }}
+                      />
+                      <div>
+                        <strong style={{ fontSize: '0.8rem', color: mappingForm.webPermissions?.isSuperAdmin ? 'var(--mc-gold)' : '#fff' }}>
+                          👑 Vollzugriff (Super-Admin)
+                        </strong>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--mc-gray)' }}>
+                          Gewährt unbeschränkten Zugriff auf ALLE Bereiche, Server, Konsolen, Backups & Systemeinstellungen.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Granular Toggles (if not super-admin) */}
+                    {!mappingForm.webPermissions?.isSuperAdmin && (
+                      <div>
+                        <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-gray)', display: 'block', marginBottom: '8px' }}>
+                          GRANULARE DASHBOARD-BERECHTIGUNGEN:
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '8px' }}>
+                          {[
+                            { key: 'canControlCluster', icon: '⚡', title: 'Cluster & Server steuern', desc: 'Server starten, stoppen und Proxy synchronisieren' },
+                            { key: 'canManageNodes', icon: '🖥️', title: 'Server & SSH verwalten', desc: 'Server konfigurieren, Ports/IPs anpassen & deployen' },
+                            { key: 'canAccessConsole', icon: '📟', title: 'Live-Konsole & Befehle', desc: 'Echtzeit-Logs einsehen und Konsolenbefehle senden' },
+                            { key: 'canManageWorlds', icon: '🌍', title: 'Welten & Backups', desc: 'Welten als ZIP exportieren, hochladen oder zurücksetzen' },
+                            { key: 'canManagePlugins', icon: '📦', title: 'Modrinth Plugins', desc: 'Plugins durchsuchen, installieren und entfernen' },
+                            { key: 'canManageDiscord', icon: '🛡️', title: 'Discord verwalten', desc: 'Bot-Konfiguration und Rollen-Zuordnungen bearbeiten' },
+                          ].map(item => {
+                            const isChecked = !!mappingForm.webPermissions?.[item.key];
+                            return (
+                              <div
+                                key={item.key}
+                                onClick={() => setMappingForm({
+                                  ...mappingForm,
+                                  webPermissions: {
+                                    ...mappingForm.webPermissions,
+                                    [item.key]: !isChecked
+                                  }
+                                })}
+                                style={{
+                                  background: isChecked ? 'rgba(85, 255, 255, 0.1)' : '#0a0c12',
+                                  border: `1px solid ${isChecked ? 'var(--mc-aqua)' : '#282b3a'}`,
+                                  padding: '8px 12px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {}}
+                                  style={{ width: '15px', height: '15px', accentColor: 'var(--mc-aqua)', cursor: 'pointer' }}
+                                />
+                                <div>
+                                  <div style={{ fontSize: '0.75rem', fontWeight: isChecked ? 'bold' : 'normal', color: isChecked ? '#fff' : 'var(--mc-gray)' }}>
+                                    {item.icon} {item.title}
+                                  </div>
+                                  <div style={{ fontSize: '0.62rem', color: '#777' }}>
+                                    {item.desc}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div style={{ marginBottom: '18px' }}>
-                <label className="mc-label">PRIORITÄT (HÖHERE ZAHL GEWINNT BEI MEHREREN ROLLEN)</label>
-                <input
-                  type="number"
-                  className="mc-input"
-                  value={mappingForm.priority}
-                  onChange={(e) => setMappingForm({ ...mappingForm, priority: Number(e.target.value) || 10 })}
-                />
+              {/* SECTION 2: MINECRAFT IN-GAME BERECHTIGUNGEN */}
+              <div style={{
+                marginBottom: '18px',
+                background: '#11131c',
+                border: '2px solid #2e3347',
+                padding: '16px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <ShieldCheck size={18} color="var(--mc-yellow)" />
+                  <span className="mc-title" style={{ fontSize: '0.85rem', color: 'var(--mc-yellow)', margin: 0 }}>
+                    3. BERECHTIGUNGEN AUF DEM SERVER (MINECRAFT IN-GAME)
+                  </span>
+                </div>
+
+                {/* Allow Join Toggle */}
+                <div 
+                  onClick={() => setMappingForm({ ...mappingForm, allowMinecraftJoin: mappingForm.allowMinecraftJoin === false ? true : false })}
+                  style={{
+                    background: mappingForm.allowMinecraftJoin !== false ? 'rgba(85, 255, 85, 0.1)' : 'rgba(255, 85, 85, 0.1)',
+                    border: `2px solid ${mappingForm.allowMinecraftJoin !== false ? 'var(--mc-green)' : 'var(--mc-red)'}`,
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    cursor: 'pointer',
+                    marginBottom: '10px'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={mappingForm.allowMinecraftJoin !== false}
+                    onChange={() => {}}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--mc-green)', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: '0.8rem', color: mappingForm.allowMinecraftJoin !== false ? '#fff' : 'var(--mc-red)' }}>
+                      ✔ Server-Beitritt erlauben (Whitelist)
+                    </strong>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--mc-gray)' }}>
+                      {mappingForm.allowMinecraftJoin !== false 
+                        ? 'Spieler mit dieser Rolle werden automatisch auf die Minecraft-Whitelist gesetzt.' 
+                        : '⛔ Spieler mit dieser Rolle dürfen dem Server NICHT beitreten (werden gekickt & entwhitelisted).'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* OP Toggle */}
+                <div 
+                  onClick={() => {
+                    const nextOp = !mappingForm.isOperator;
+                    setMappingForm({
+                      ...mappingForm,
+                      isOperator: nextOp,
+                      minecraftGroup: nextOp && mappingForm.minecraftGroup === 'vip' ? 'op' : mappingForm.minecraftGroup
+                    });
+                  }}
+                  style={{
+                    background: mappingForm.isOperator ? 'rgba(255, 85, 85, 0.15)' : '#0e1017',
+                    border: `2px solid ${mappingForm.isOperator ? 'var(--mc-red)' : '#2e3347'}`,
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    cursor: 'pointer',
+                    marginBottom: '12px'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!mappingForm.isOperator}
+                    onChange={() => {}}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--mc-red)', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: '0.8rem', color: mappingForm.isOperator ? 'var(--mc-red)' : '#fff' }}>
+                      👑 Minecraft Operator (/op &#123;player&#125;)
+                    </strong>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--mc-gray)' }}>
+                      Gibt dem Spieler volle Operator-Rechte im Spiel (kann alle Vanilla-Befehle nutzen).
+                    </div>
+                  </div>
+                </div>
+
+                {/* In-game Fields */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label className="mc-label">LUCKPERMS RANG / GRUPPE</label>
+                    <input
+                      type="text"
+                      className="mc-input"
+                      placeholder="z.B. admin, mod, builder, vip, default"
+                      value={mappingForm.minecraftGroup}
+                      onChange={(e) => setMappingForm({ ...mappingForm, minecraftGroup: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mc-label">CHAT-PRÄFIX (MIT FARBCODES)</label>
+                    <input
+                      type="text"
+                      className="mc-input font-mono"
+                      placeholder="z.B. &c[Admin]  oder &9[Mod] "
+                      value={mappingForm.prefix}
+                      onChange={(e) => setMappingForm({ ...mappingForm, prefix: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mc-label">PRIORITÄT (HÖHERE ZAHL GEWINNT)</label>
+                    <input
+                      type="number"
+                      className="mc-input"
+                      value={mappingForm.priority}
+                      onChange={(e) => setMappingForm({ ...mappingForm, priority: Number(e.target.value) || 10 })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mc-label">EIGENER BEFEHL (OPTIONAL)</label>
+                    <input
+                      type="text"
+                      className="mc-input font-mono"
+                      placeholder="z.B. op {player} oder lp user {player} parent set admin"
+                      value={mappingForm.customCommand}
+                      onChange={(e) => setMappingForm({ ...mappingForm, customCommand: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
 
+              {/* Form Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button type="button" onClick={() => setShowMappingModal(false)} className="mc-btn">
                   ABBRECHEN

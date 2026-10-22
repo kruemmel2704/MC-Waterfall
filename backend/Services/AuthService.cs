@@ -12,6 +12,7 @@ public class AuthSession
     public string Username { get; set; } = string.Empty;
     public string AuthMethod { get; set; } = "local"; // "local" | "discord"
     public string? AvatarUrl { get; set; }
+    public WebPermissions Permissions { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ExpiresAt { get; set; } = DateTime.UtcNow.AddDays(7);
 }
@@ -91,6 +92,7 @@ public class AuthService : IAuthService
         string? username = null;
         string? authMethod = null;
         string? avatarUrl = null;
+        WebPermissions? permissions = null;
 
         if (!string.IsNullOrWhiteSpace(sessionToken) && _sessions.TryGetValue(sessionToken, out var session))
         {
@@ -100,6 +102,7 @@ public class AuthService : IAuthService
                 username = session.Username;
                 authMethod = session.AuthMethod;
                 avatarUrl = session.AvatarUrl;
+                permissions = session.Permissions ?? (session.AuthMethod == "local" ? WebPermissions.FullAdmin : null);
             }
             else
             {
@@ -117,7 +120,8 @@ public class AuthService : IAuthService
             DiscordOAuthEnabled = settings.DiscordOAuthEnabled || discordConfig.IsEnabled,
             ServerName = settings.ServerName,
             Architecture = settings.Architecture,
-            DiscordClientId = discordConfig.ClientId
+            DiscordClientId = discordConfig.ClientId,
+            Permissions = permissions
         };
     }
 
@@ -148,6 +152,7 @@ public class AuthService : IAuthService
             Token = token,
             Username = settings.AdminUsername,
             AuthMethod = "local",
+            Permissions = WebPermissions.FullAdmin,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(7)
         };
@@ -161,7 +166,8 @@ public class AuthService : IAuthService
             Message = "Erfolgreich angemeldet!",
             Token = token,
             Username = settings.AdminUsername,
-            AuthMethod = "local"
+            AuthMethod = "local",
+            Permissions = WebPermissions.FullAdmin
         };
     }
 
@@ -177,6 +183,46 @@ public class AuthService : IAuthService
                 return new LoginResponse { Success = false, Message = "Discord-Profil konnte nicht geladen werden." };
             }
 
+            // Fetch member roles
+            var userRoles = profile.GuildRoles?.Count > 0 ? profile.GuildRoles : await _discordService.GetMemberRolesAsync(profile.Id);
+            var mappings = config.RoleMappings ?? new List<DiscordRoleMapping>();
+
+            // Find matching role mappings
+            var matchedMappings = mappings.Where(m => userRoles.Contains(m.DiscordRoleId)).ToList();
+            var isGuildAdmin = profile.IsAdmin;
+
+            // Check if user is authorized to login to Dashboard
+            var canLogin = isGuildAdmin || matchedMappings.Any(m => m.WebPermissions != null && (m.WebPermissions.AllowDashboardLogin || m.WebPermissions.IsSuperAdmin));
+
+            if (!canLogin)
+            {
+                return new LoginResponse
+                {
+                    Success = false,
+                    Message = "Zugriff verweigert: Deiner Discord-Rolle wurde kein Zugriff auf das Web-Dashboard zugewiesen."
+                };
+            }
+
+            WebPermissions permissions;
+            if (isGuildAdmin || matchedMappings.Any(m => m.WebPermissions?.IsSuperAdmin == true))
+            {
+                permissions = WebPermissions.FullAdmin;
+            }
+            else
+            {
+                permissions = new WebPermissions
+                {
+                    AllowDashboardLogin = true,
+                    IsSuperAdmin = false,
+                    CanControlCluster = matchedMappings.Any(m => m.WebPermissions?.CanControlCluster == true),
+                    CanManageNodes = matchedMappings.Any(m => m.WebPermissions?.CanManageNodes == true),
+                    CanAccessConsole = matchedMappings.Any(m => m.WebPermissions?.CanAccessConsole == true),
+                    CanManageWorlds = matchedMappings.Any(m => m.WebPermissions?.CanManageWorlds == true),
+                    CanManagePlugins = matchedMappings.Any(m => m.WebPermissions?.CanManagePlugins == true),
+                    CanManageDiscord = matchedMappings.Any(m => m.WebPermissions?.CanManageDiscord == true)
+                };
+            }
+
             var token = Guid.NewGuid().ToString("N");
             var session = new AuthSession
             {
@@ -184,6 +230,7 @@ public class AuthService : IAuthService
                 Username = profile.GlobalName ?? profile.Username,
                 AuthMethod = "discord",
                 AvatarUrl = profile.AvatarUrl,
+                Permissions = permissions,
                 CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(7)
             };
@@ -198,7 +245,8 @@ public class AuthService : IAuthService
                 Token = token,
                 Username = session.Username,
                 AuthMethod = "discord",
-                AvatarUrl = session.AvatarUrl
+                AvatarUrl = session.AvatarUrl,
+                Permissions = session.Permissions
             };
         }
         catch (Exception ex)
@@ -386,6 +434,7 @@ public class AuthService : IAuthService
             Token = token,
             Username = settings.AdminUsername,
             AuthMethod = "local",
+            Permissions = WebPermissions.FullAdmin,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(7)
         };
@@ -397,7 +446,8 @@ public class AuthService : IAuthService
             Message = "Setup erfolgreich abgeschlossen! Willkommen im Dashboard.",
             Token = token,
             Username = settings.AdminUsername,
-            AuthMethod = "local"
+            AuthMethod = "local",
+            Permissions = WebPermissions.FullAdmin
         };
     }
 
