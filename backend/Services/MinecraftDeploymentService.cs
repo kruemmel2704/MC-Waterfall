@@ -197,15 +197,133 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
         return logs;
     }
 
-    private async Task<string> ResolveDownloadUrlAsync(ClusterNode node)
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<ServerType, (DateTime CachedAt, List<string> Versions)> _versionCache = new();
+
+    public async Task<List<string>> GetAvailableVersionsAsync(ServerType serverType)
+    {
+        if (_versionCache.TryGetValue(serverType, out var cached) && (DateTime.UtcNow - cached.CachedAt).TotalMinutes < 30)
+        {
+            return cached.Versions;
+        }
+
+        const string userAgent = "McWaterfall/1.0 (admin@example.com)";
+        var versions = new List<string>();
+
+        try
+        {
+            if (serverType == ServerType.Waterfall)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, "https://fill.papermc.io/v3/projects/waterfall");
+                req.Headers.Add("User-Agent", userAgent);
+                var res = await _httpClient.SendAsync(req);
+                if (res.IsSuccessStatusCode)
+                {
+                    var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                    if (doc.TryGetProperty("versions", out var versObj))
+                    {
+                        foreach (var prop in versObj.EnumerateObject())
+                        {
+                            if (prop.Value.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var item in prop.Value.EnumerateArray())
+                                {
+                                    var v = item.GetString();
+                                    if (!string.IsNullOrWhiteSpace(v) && !versions.Contains(v))
+                                    {
+                                        versions.Add(v);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (serverType == ServerType.Purpur)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.purpurmc.org/v2/purpur");
+                req.Headers.Add("User-Agent", userAgent);
+                var res = await _httpClient.SendAsync(req);
+                if (res.IsSuccessStatusCode)
+                {
+                    var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                    if (doc.TryGetProperty("versions", out var versArr) && versArr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in versArr.EnumerateArray())
+                        {
+                            var v = item.GetString();
+                            if (!string.IsNullOrWhiteSpace(v) && !v.Contains("-pre") && !v.Contains("-rc") && !versions.Contains(v))
+                            {
+                                versions.Add(v);
+                            }
+                        }
+                        versions.Reverse(); // Newest first
+                    }
+                }
+            }
+            else // PaperMC (default)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, "https://fill.papermc.io/v3/projects/paper");
+                req.Headers.Add("User-Agent", userAgent);
+                var res = await _httpClient.SendAsync(req);
+                if (res.IsSuccessStatusCode)
+                {
+                    var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                    if (doc.TryGetProperty("versions", out var versObj))
+                    {
+                        foreach (var prop in versObj.EnumerateObject())
+                        {
+                            if (prop.Value.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var item in prop.Value.EnumerateArray())
+                                {
+                                    var v = item.GetString();
+                                    if (!string.IsNullOrWhiteSpace(v) && !v.Contains("-pre") && !v.Contains("-rc") && !versions.Contains(v))
+                                    {
+                                        versions.Add(v);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch versions for {ServerType} from API", serverType);
+        }
+
+        // Robust fallbacks if external API fails
+        if (versions.Count == 0)
+        {
+            if (serverType == ServerType.Waterfall)
+            {
+                versions = new List<string> { "1.21", "1.20", "1.19", "1.18", "1.17", "1.16", "1.15", "1.14", "1.13", "1.12", "1.11" };
+            }
+            else if (serverType == ServerType.Purpur)
+            {
+                versions = new List<string> { "1.21.4", "1.21.3", "1.21.1", "1.21", "1.20.6", "1.20.4", "1.20.2", "1.20.1", "1.19.4" };
+            }
+            else
+            {
+                versions = new List<string> { "1.21.4", "1.21.3", "1.21.1", "1.21", "1.20.6", "1.20.4", "1.20.2", "1.20.1", "1.19.4", "1.18.2", "1.17.1", "1.16.5" };
+            }
+        }
+
+        _versionCache[serverType] = (DateTime.UtcNow, versions);
+        return versions;
+    }
+
+    public async Task<string> ResolveDownloadUrlForVersionAsync(ServerType serverType, string version)
     {
         const string userAgent = "McWaterfall/1.0 (admin@example.com)";
 
-        if (node.Role == ServerRole.WaterfallProxy || node.ServerType == ServerType.Waterfall)
+        if (serverType == ServerType.Waterfall)
         {
+            var v = string.IsNullOrWhiteSpace(version) ? "1.21" : version.Trim();
             try
             {
-                using var req = new HttpRequestMessage(HttpMethod.Get, "https://fill.papermc.io/v3/projects/waterfall/versions/1.21");
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/waterfall/versions/{v}");
                 req.Headers.Add("User-Agent", userAgent);
                 var res = await _httpClient.SendAsync(req);
                 if (res.IsSuccessStatusCode)
@@ -214,7 +332,7 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
                     if (doc.TryGetProperty("builds", out var builds) && builds.GetArrayLength() > 0)
                     {
                         var latestBuild = builds[0].GetInt32();
-                        using var buildReq = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/waterfall/versions/1.21/builds/{latestBuild}");
+                        using var buildReq = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/waterfall/versions/{v}/builds/{latestBuild}");
                         buildReq.Headers.Add("User-Agent", userAgent);
                         var buildRes = await _httpClient.SendAsync(buildReq);
                         if (buildRes.IsSuccessStatusCode)
@@ -231,18 +349,23 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to resolve latest Waterfall from Fill API, using verified direct fallback.");
+                _logger.LogWarning(ex, "Failed to resolve Waterfall version {Version} from Fill API, using fallback", v);
             }
-            // Verified active direct download URL
+
             return "https://fill-data.papermc.io/v1/objects/5eda8bfd0691e5088701f87020c68964299586df0faba289a634122d282d598c/waterfall-1.21-615.jar";
+        }
+        else if (serverType == ServerType.Purpur)
+        {
+            var v = string.IsNullOrWhiteSpace(version) ? "1.21.4" : version.Trim();
+            return $"https://api.purpurmc.org/v2/purpur/{v}/latest/download";
         }
         else
         {
             // PaperMC
-            var mcVersion = string.IsNullOrWhiteSpace(node.MinecraftVersion) ? "1.21.1" : node.MinecraftVersion;
+            var v = string.IsNullOrWhiteSpace(version) ? "1.21.4" : version.Trim();
             try
             {
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/paper/versions/{mcVersion}");
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/paper/versions/{v}");
                 req.Headers.Add("User-Agent", userAgent);
                 var res = await _httpClient.SendAsync(req);
                 if (res.IsSuccessStatusCode)
@@ -251,7 +374,7 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
                     if (doc.TryGetProperty("builds", out var builds) && builds.GetArrayLength() > 0)
                     {
                         var latestBuild = builds[0].GetInt32();
-                        using var buildReq = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/paper/versions/{mcVersion}/builds/{latestBuild}");
+                        using var buildReq = new HttpRequestMessage(HttpMethod.Get, $"https://fill.papermc.io/v3/projects/paper/versions/{v}/builds/{latestBuild}");
                         buildReq.Headers.Add("User-Agent", userAgent);
                         var buildRes = await _httpClient.SendAsync(buildReq);
                         if (buildRes.IsSuccessStatusCode)
@@ -268,11 +391,110 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to resolve Paper build for {Version}, using verified direct fallback.", mcVersion);
+                _logger.LogWarning(ex, "Failed to resolve Paper version {Version} from Fill API, using fallback", v);
             }
-            // Verified active direct download URL for Paper 1.21.1
-            return "https://fill-data.papermc.io/v1/objects/39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9/paper-1.21.1-133.jar";
+
+            return "https://fill-data.papermc.io/v1/objects/5ee4f542f628a14c644410b08c94ea42e772ef4d29fe92973636b6813d4eaffc/paper-1.21.4-232.jar";
         }
+    }
+
+    private async Task<string> ResolveDownloadUrlAsync(ClusterNode node)
+    {
+        return await ResolveDownloadUrlForVersionAsync(node.ServerType, node.MinecraftVersion);
+    }
+
+    public async Task<UpdateNodeVersionResult> UpdateNodeJarAsync(ClusterNode node, string targetVersion, bool restartAfterUpdate = true)
+    {
+        var result = new UpdateNodeVersionResult
+        {
+            PreviousVersion = node.MinecraftVersion,
+            NewVersion = targetVersion
+        };
+
+        if (string.IsNullOrWhiteSpace(targetVersion))
+        {
+            result.Success = false;
+            result.Message = "Keine Zielversion angegeben.";
+            return result;
+        }
+
+        // Step 1: Verify SSH connection
+        var sshTest = await _sshService.TestConnectionAsync(node);
+        if (!sshTest.Success)
+        {
+            result.Success = false;
+            result.Message = $"SSH-Verbindung fehlgeschlagen: {sshTest.Message}";
+            return result;
+        }
+
+        var sessionName = $"mc_{node.Id}";
+        var remoteDir = node.RemoteDirectory.TrimEnd('/');
+
+        // Step 2: Check if server is currently running
+        var checkRunningCmd = $"screen -list | grep -q \"\\.{sessionName}[[:space:]]\"";
+        var runCheck = await _sshService.ExecuteCommandAsync(node, checkRunningCmd, 10);
+        bool wasRunning = runCheck.ExitCode == 0;
+
+        // Step 3: Stop server if running
+        if (wasRunning)
+        {
+            _logger.LogInformation("Node {NodeName} is running. Stopping before version update...", node.Name);
+            var stopScript = GenerateStopScript(node);
+            await _sshService.ExecuteCommandAsync(node, stopScript, 25);
+            await Task.Delay(4000);
+        }
+
+        // Step 4: Resolve download URL
+        var jarUrl = await ResolveDownloadUrlForVersionAsync(node.ServerType, targetVersion);
+        _logger.LogInformation("Updating node {NodeName} to {TargetVersion} via {JarUrl}", node.Name, targetVersion, jarUrl);
+
+        // Step 5: Backup existing server.jar
+        var backupCmd = $"if [ -f '{remoteDir}/server.jar' ]; then cp -f '{remoteDir}/server.jar' '{remoteDir}/server.jar.bak'; fi";
+        await _sshService.ExecuteCommandAsync(node, backupCmd, 15);
+
+        // Step 6: Download new jar
+        var downloadCmd = $"curl -fSL -A 'McWaterfall/1.0 (admin@example.com)' -o '{remoteDir}/server.jar' '{jarUrl}' || wget -q --user-agent='McWaterfall/1.0' -O '{remoteDir}/server.jar' '{jarUrl}'";
+        var dlRes = await _sshService.ExecuteCommandAsync(node, downloadCmd, 180);
+
+        if (dlRes.ExitCode != 0)
+        {
+            _logger.LogError("Download of version {TargetVersion} failed for node {NodeName}: {Error}", targetVersion, node.Name, dlRes.StdErr);
+            // Restore previous jar
+            await _sshService.ExecuteCommandAsync(node, $"if [ -f '{remoteDir}/server.jar.bak' ]; then cp -f '{remoteDir}/server.jar.bak' '{remoteDir}/server.jar'; fi", 15);
+            if (wasRunning && restartAfterUpdate)
+            {
+                var runScript = GenerateRunScript(node);
+                await _sshService.UploadTextFileAsync(node, $"{remoteDir}/run.sh", runScript);
+                await _sshService.ExecuteCommandAsync(node, $"chmod +x '{remoteDir}/run.sh' && '{remoteDir}/run.sh'", 20);
+            }
+
+            result.Success = false;
+            result.Message = $"Download der Version {targetVersion} fehlgeschlagen: {dlRes.StdErr}";
+            return result;
+        }
+
+        // Step 7: Update node version property
+        node.MinecraftVersion = targetVersion;
+
+        // Step 8: Update run.sh with appropriate JVM options
+        var newRunScript = GenerateRunScript(node);
+        await _sshService.UploadTextFileAsync(node, $"{remoteDir}/run.sh", newRunScript);
+        await _sshService.ExecuteCommandAsync(node, $"chmod +x '{remoteDir}/run.sh'", 10);
+
+        // Step 9: Restart if requested & was running
+        if (wasRunning && restartAfterUpdate)
+        {
+            _logger.LogInformation("Restarting node {NodeName} after version update...", node.Name);
+            await _sshService.ExecuteCommandAsync(node, $"cd '{remoteDir}' && ./run.sh", 20);
+            result.Message = $"Server '{node.Name}' erfolgreich auf Version {targetVersion} aktualisiert und neugestartet.";
+        }
+        else
+        {
+            result.Message = $"Server '{node.Name}' erfolgreich auf Version {targetVersion} aktualisiert.";
+        }
+
+        result.Success = true;
+        return result;
     }
 
     public string GenerateWaterfallConfig(ClusterConfig clusterConfig, ClusterNode proxyNode)
@@ -472,7 +694,7 @@ fi
 ";
     }
 
-    private string GenerateStopScript(ClusterNode node)
+    public string GenerateStopScript(ClusterNode node)
     {
         var sessionName = $"mc_{node.Id}";
         var stopCmd = node.Role == ServerRole.WaterfallProxy ? "end" : "stop";

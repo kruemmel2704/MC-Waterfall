@@ -309,6 +309,34 @@ public class ClusterManagerService : IClusterManagerService
         return results.ToList();
     }
 
+    public async Task<UpdateNodeVersionResult> UpdateNodeVersionAsync(string nodeId, string targetVersion, bool restartAfterUpdate = true)
+    {
+        var node = await GetNodeAsync(nodeId);
+        if (node == null)
+        {
+            return new UpdateNodeVersionResult
+            {
+                Success = false,
+                Message = $"Server mit ID '{nodeId}' wurde nicht im Cluster gefunden."
+            };
+        }
+
+        var updateResult = await _deploymentService.UpdateNodeJarAsync(node, targetVersion, restartAfterUpdate);
+        if (updateResult.Success)
+        {
+            var config = await GetConfigAsync();
+            var existingNode = config.Nodes.FirstOrDefault(n => n.Id == nodeId);
+            if (existingNode != null)
+            {
+                existingNode.MinecraftVersion = targetVersion;
+                await SaveConfigAsync(config);
+            }
+        }
+
+        await RefreshNodeStatusAsync(nodeId);
+        return updateResult;
+    }
+
     private ClusterConfig CreateDefaultClusterConfig()
     {
         return new ClusterConfig

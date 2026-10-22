@@ -12,17 +12,20 @@ public class ClusterController : ControllerBase
 {
     private readonly IClusterManagerService _clusterService;
     private readonly ISshService _sshService;
+    private readonly IMinecraftDeploymentService _deploymentService;
     private readonly IHubContext<ClusterHub> _hubContext;
     private readonly ILogger<ClusterController> _logger;
 
     public ClusterController(
         IClusterManagerService clusterService,
         ISshService sshService,
+        IMinecraftDeploymentService deploymentService,
         IHubContext<ClusterHub> hubContext,
         ILogger<ClusterController> logger)
     {
         _clusterService = clusterService;
         _sshService = sshService;
+        _deploymentService = deploymentService;
         _hubContext = hubContext;
         _logger = logger;
     }
@@ -137,5 +140,23 @@ public class ClusterController : ControllerBase
         var res = await _clusterService.SendCommandAsync(id, req.Command);
         await _hubContext.Clients.Group($"console_{id}").SendAsync("ConsoleOutput", id, $"> {req.Command}\n{res}\n");
         return Ok(new { output = res });
+    }
+
+    [HttpGet("versions")]
+    public async Task<ActionResult<List<string>>> GetAvailableVersions([FromQuery] ServerType serverType = ServerType.Paper)
+    {
+        var versions = await _deploymentService.GetAvailableVersionsAsync(serverType);
+        return Ok(versions);
+    }
+
+    [HttpPost("node/{id}/update-version")]
+    public async Task<ActionResult<UpdateNodeVersionResult>> UpdateNodeVersion(string id, [FromBody] UpdateNodeVersionRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.TargetVersion))
+        {
+            return BadRequest(new UpdateNodeVersionResult { Success = false, Message = "Zielversion darf nicht leer sein." });
+        }
+        var result = await _clusterService.UpdateNodeVersionAsync(id, request.TargetVersion, request.RestartAfterUpdate);
+        return Ok(result);
     }
 }

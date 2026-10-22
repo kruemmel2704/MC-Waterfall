@@ -22,4 +22,8 @@ public interface IMinecraftDeploymentService
     string GenerateSpigotConfig(ClusterNode node, string? customKickMessage = null);
     string GeneratePaperGlobalConfig(ClusterNode node);
     string GenerateRunScript(ClusterNode node);
+    string GenerateStopScript(ClusterNode node);
+    Task<List<string>> GetAvailableVersionsAsync(ServerType serverType);
+    Task<string> ResolveDownloadUrlForVersionAsync(ServerType serverType, string version);
+    Task<UpdateNodeVersionResult> UpdateNodeJarAsync(ClusterNode node, string targetVersion, bool restartAfterUpdate = true);
 }

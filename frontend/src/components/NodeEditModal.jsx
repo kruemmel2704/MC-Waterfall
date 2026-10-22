@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Key, Eye, EyeOff, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Key, Eye, EyeOff, CheckCircle2, AlertCircle, RefreshCw, ArrowUpCircle } from 'lucide-react';
 import { CommandBlockIcon } from './MinecraftIcons';
 
 export default function NodeEditModal({ node, onSave, onClose }) {
@@ -23,6 +23,79 @@ export default function NodeEditModal({ node, onSave, onClose }) {
   const [showPassword, setShowPassword] = useState(false);
   const [testingSsh, setTestingSsh] = useState(false);
   const [testResult, setTestResult] = useState(null);
+
+  // Dynamic Minecraft Version state from official API
+  const [availableVersions, setAvailableVersions] = useState([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [customVersionMode, setCustomVersionMode] = useState(false);
+  const [updatingVersion, setUpdatingVersion] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState(null);
+
+  const fetchVersions = useCallback(async (typeToFetch) => {
+    const sType = typeToFetch || formData.serverType || 'Paper';
+    setLoadingVersions(true);
+    try {
+      const res = await fetch(`/api/cluster/versions?serverType=${sType}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setAvailableVersions(data);
+          // If no version currently set, default to first (newest)
+          setFormData(prev => {
+            if (!prev.minecraftVersion) {
+              return { ...prev, minecraftVersion: data[0] };
+            }
+            return prev;
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Fehler beim Abrufen der Minecraft-Versionen:', err);
+    } finally {
+      setLoadingVersions(false);
+    }
+  }, [formData.serverType]);
+
+  useEffect(() => {
+    fetchVersions(formData.serverType);
+  }, [formData.serverType, fetchVersions]);
+
+  const handleUpdateVersion = async () => {
+    if (!node?.id) return;
+    const targetVer = formData.minecraftVersion?.trim();
+    if (!targetVer) {
+      alert('Bitte wähle zuerst eine Version aus.');
+      return;
+    }
+
+    const confirmMsg = `Möchtest du die Server-Software auf dem Host (${formData.host}) jetzt aktualisieren?\n\n• Server: ${formData.name || node.name}\n• Zielversion: ${targetVer} (${formData.serverType})\n• Pfad: ${formData.remoteDirectory}\n\nHinweis: Falls der Server aktiv ist, wird er kurzzeitig gestoppt, ein Backup von server.jar angelegt, die neue Version installiert und der Server wieder gestartet.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setUpdatingVersion(true);
+    setUpdateStatus(null);
+    try {
+      const res = await fetch(`/api/cluster/node/${node.id}/update-version`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetVersion: targetVer,
+          restartAfterUpdate: true
+        })
+      });
+      const data = await res.json();
+      setUpdateStatus(data);
+      if (data.success && node) {
+        node.minecraftVersion = targetVer;
+      }
+    } catch (err) {
+      setUpdateStatus({
+        success: false,
+        message: 'Netzwerkfehler beim Aktualisieren: ' + err.message
+      });
+    } finally {
+      setUpdatingVersion(false);
+    }
+  };
 
   const roles = [
     { value: 'WaterfallProxy', label: 'Waterfall Proxy (Gateway)', defaultPort: 25565, defaultType: 'Waterfall' },
@@ -308,15 +381,152 @@ export default function NodeEditModal({ node, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="mc-label">MINECRAFT VERSION</label>
-              <input
-                type="text"
-                className="mc-input font-mono"
-                value={formData.minecraftVersion}
-                onChange={e => setFormData({ ...formData, minecraftVersion: e.target.value })}
-              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label className="mc-label" style={{ marginBottom: 0 }}>MINECRAFT VERSION</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCustomVersionMode(!customVersionMode)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--mc-aqua)',
+                      fontSize: '0.68rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    {customVersionMode ? 'Aus Liste' : 'Manuell'}
+                  </button>
+                  <button
+                    type="button"
+                    title={`Versionen für ${formData.serverType} neu laden`}
+                    onClick={() => fetchVersions(formData.serverType)}
+                    disabled={loadingVersions}
+                    style={{ background: 'none', border: 'none', color: 'var(--mc-gray)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+                  >
+                    <RefreshCw size={11} className={loadingVersions ? 'spin-anim' : ''} />
+                  </button>
+                </div>
+              </div>
+
+              {customVersionMode ? (
+                <input
+                  type="text"
+                  className="mc-input font-mono"
+                  placeholder="z.B. 1.21.1 oder 1.20"
+                  value={formData.minecraftVersion}
+                  onChange={e => setFormData({ ...formData, minecraftVersion: e.target.value })}
+                  required
+                />
+              ) : (
+                <select
+                  className="mc-select font-mono"
+                  value={formData.minecraftVersion}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      setCustomVersionMode(true);
+                    } else {
+                      setFormData({ ...formData, minecraftVersion: e.target.value });
+                    }
+                  }}
+                  disabled={loadingVersions}
+                >
+                  {loadingVersions && <option value="">Lade {formData.serverType} Versionen...</option>}
+                  {!loadingVersions && availableVersions.length === 0 && (
+                    <option value={formData.minecraftVersion}>{formData.minecraftVersion || 'Keine Versionen'}</option>
+                  )}
+                  {!loadingVersions && formData.minecraftVersion && !availableVersions.includes(formData.minecraftVersion) && (
+                    <option value={formData.minecraftVersion}>{formData.minecraftVersion} (Aktuell eingestellt)</option>
+                  )}
+                  {!loadingVersions && availableVersions.map((v, idx) => (
+                    <option key={v} value={v}>
+                      {v} {idx === 0 ? '★ (Neueste Version)' : ''}
+                    </option>
+                  ))}
+                  <option value="__custom__">✎ Eigene Version manuell eingeben...</option>
+                </select>
+              )}
             </div>
           </div>
+
+          {/* Version & Update Action Banner */}
+          {node?.id && (
+            <div style={{
+              marginTop: '14px',
+              padding: '12px 14px',
+              background: '#151720',
+              border: '2px solid #3c3e4a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ArrowUpCircle size={22} color="var(--mc-gold)" />
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--mc-gold)' }}>
+                    SERVER VERSION AKTUALISIEREN
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--mc-gray)', marginTop: '2px' }}>
+                    Gewählte Zielversion: <span className="font-mono" style={{ color: 'var(--mc-aqua)', fontWeight: 700 }}>{formData.minecraftVersion}</span> ({formData.serverType})
+                    {node.minecraftVersion && node.minecraftVersion !== formData.minecraftVersion && (
+                      <span style={{ color: 'var(--mc-yellow)', marginLeft: '8px' }}>
+                        (Aktuell installiert: {node.minecraftVersion})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleUpdateVersion}
+                disabled={updatingVersion || !formData.minecraftVersion}
+                className="mc-btn mc-btn-gold"
+                style={{ padding: '8px 16px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <RefreshCw size={13} className={updatingVersion ? 'spin-anim' : ''} />
+                {updatingVersion ? 'WIRD AKTUALISIERT...' : 'UPDATE JETZT INSTALLIEREN'}
+              </button>
+            </div>
+          )}
+
+          {updateStatus && (
+            <div style={{
+              marginTop: '10px',
+              padding: '10px 12px',
+              background: updateStatus.success ? '#0d2b15' : '#3d0f0f',
+              border: `2px solid ${updateStatus.success ? 'var(--mc-green)' : 'var(--mc-red)'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {updateStatus.success ? <CheckCircle2 size={18} color="var(--mc-green)" /> : <AlertCircle size={18} color="var(--mc-red)" />}
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: updateStatus.success ? 'var(--mc-green)' : 'var(--mc-red)', fontWeight: 700 }}>
+                    {updateStatus.message}
+                  </div>
+                  {updateStatus.previousVersion && updateStatus.newVersion && (
+                    <div style={{ fontSize: '0.7rem', color: 'var(--mc-gray)', marginTop: '2px' }}>
+                      Version aktualisiert: {updateStatus.previousVersion} → {updateStatus.newVersion}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpdateStatus(null)}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'var(--mc-font)' }}
+              >
+                [X]
+              </button>
+            </div>
+          )}
 
           <div style={{ marginTop: '14px' }}>
             <label className="mc-label">INSTALLATIONSPFAD AUF REMOTE SERVER</label>

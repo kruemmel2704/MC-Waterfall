@@ -115,3 +115,17 @@ public class NodeLiveMetrics
     public int OnlinePlayers { get; set; }
     public string? RawOutput { get; set; }
 }
+
+public class UpdateNodeVersionRequest
+{
+    public string TargetVersion { get; set; } = string.Empty;
+    public bool RestartAfterUpdate { get; set; } = true;
+}
+
+public class UpdateNodeVersionResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? PreviousVersion { get; set; }
+    public string? NewVersion { get; set; }
+}

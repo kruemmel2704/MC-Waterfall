@@ -21,4 +21,5 @@ public interface IClusterManagerService
     
     Task<NodeLiveMetrics> RefreshNodeStatusAsync(string nodeId);
     Task<List<NodeLiveMetrics>> RefreshAllStatusAsync();
+    Task<UpdateNodeVersionResult> UpdateNodeVersionAsync(string nodeId, string targetVersion, bool restartAfterUpdate = true);
 }
