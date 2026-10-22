@@ -690,6 +690,11 @@ public class DiscordService : IDiscordService
         {
             commands.Add(matchedMapping.CustomCommand.Replace("{player}", link.MinecraftUsername).Replace("{group}", matchedMapping.MinecraftGroup));
         }
+        else if (assignedGroup.Equals("op", StringComparison.OrdinalIgnoreCase) || assignedGroup.Equals("operator", StringComparison.OrdinalIgnoreCase))
+        {
+            commands.Add($"op {link.MinecraftUsername}");
+            commands.Add($"lp user {link.MinecraftUsername} parent set admin");
+        }
         else
         {
             // Standard LuckPerms rank assignment command
@@ -706,6 +711,10 @@ public class DiscordService : IDiscordService
         {
             foreach (var cmd in commands)
             {
+                // Proxy doesn't have native Minecraft 'op' command, only backend Paper nodes do
+                if (cmd.StartsWith("op ", StringComparison.OrdinalIgnoreCase) && node.Role == ServerRole.WaterfallProxy)
+                    continue;
+
                 await _clusterService.SendCommandAsync(node.Id, cmd);
             }
         }

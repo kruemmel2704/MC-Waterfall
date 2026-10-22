@@ -35,7 +35,9 @@ export default function DiscordAuthTab() {
     minecraftGroup: 'vip',
     prefix: '&b[VIP] ',
     priority: 10,
-    autoSync: true
+    autoSync: true,
+    customCommand: '',
+    isOp: false
   });
 
   const [enforcingWhitelist, setEnforcingWhitelist] = useState(false);
@@ -1116,12 +1118,96 @@ export default function DiscordAuthTab() {
                 )}
               </div>
 
+              {/* Presets */}
+              <div style={{ marginBottom: '14px' }}>
+                <span className="mc-label" style={{ fontSize: '0.68rem', color: 'var(--mc-gray)' }}>SCHNELL-VORLAGEN:</span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setMappingForm({
+                      ...mappingForm,
+                      minecraftGroup: 'op',
+                      prefix: '&c[Admin] ',
+                      priority: 100,
+                      customCommand: 'op {player}',
+                      isOp: true
+                    })}
+                    className="mc-btn mc-btn-red"
+                    style={{ padding: '4px 8px', fontSize: '0.68rem' }}
+                  >
+                    👑 OP / ADMIN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMappingForm({
+                      ...mappingForm,
+                      minecraftGroup: 'moderator',
+                      prefix: '&9[Mod] ',
+                      priority: 50,
+                      customCommand: '',
+                      isOp: false
+                    })}
+                    className="mc-btn mc-btn-blue"
+                    style={{ padding: '4px 8px', fontSize: '0.68rem' }}
+                  >
+                    🛡️ MODERATOR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMappingForm({
+                      ...mappingForm,
+                      minecraftGroup: 'vip',
+                      prefix: '&b[VIP] ',
+                      priority: 20,
+                      customCommand: '',
+                      isOp: false
+                    })}
+                    className="mc-btn mc-btn-gold"
+                    style={{ padding: '4px 8px', fontSize: '0.68rem' }}
+                  >
+                    💎 VIP
+                  </button>
+                </div>
+              </div>
+
+              {/* OP Toggle Box */}
+              <div style={{
+                background: mappingForm.isOp ? 'rgba(255, 85, 85, 0.15)' : '#10121a',
+                border: `2px solid ${mappingForm.isOp ? 'var(--mc-red)' : '#282b3a'}`,
+                padding: '10px 12px',
+                marginBottom: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                cursor: 'pointer'
+              }}
+              onClick={() => {
+                const nextOp = !mappingForm.isOp;
+                setMappingForm({
+                  ...mappingForm,
+                  isOp: nextOp,
+                  customCommand: nextOp ? (mappingForm.customCommand || 'op {player}') : (mappingForm.customCommand === 'op {player}' ? '' : mappingForm.customCommand),
+                  minecraftGroup: nextOp && mappingForm.minecraftGroup === 'vip' ? 'op' : mappingForm.minecraftGroup
+                });
+              }}>
+                <input
+                  type="checkbox"
+                  id="opToggle"
+                  checked={mappingForm.isOp}
+                  onChange={() => {}} // Handled by parent div
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--mc-red)', cursor: 'pointer' }}
+                />
+                <label htmlFor="opToggle" style={{ cursor: 'pointer', margin: 0, fontSize: '0.75rem', color: mappingForm.isOp ? '#fff' : 'var(--mc-gray)', fontWeight: mappingForm.isOp ? 'bold' : 'normal' }}>
+                  👑 Spieler zum vollen Minecraft Operator machen (/op &#123;player&#125;)
+                </label>
+              </div>
+
               <div style={{ marginBottom: '12px' }}>
                 <label className="mc-label">MINECRAFT RANG / GRUPPEN-NAME (LUCKPERMS)</label>
                 <input
                   type="text"
                   className="mc-input"
-                  placeholder="z.B. admin, mod, vip, premium, booster, default"
+                  placeholder="z.B. op, admin, mod, vip, default"
                   value={mappingForm.minecraftGroup}
                   onChange={(e) => setMappingForm({ ...mappingForm, minecraftGroup: e.target.value })}
                   required
@@ -1136,6 +1222,21 @@ export default function DiscordAuthTab() {
                   placeholder="z.B. &b[VIP]  oder &c[Admin] "
                   value={mappingForm.prefix}
                   onChange={(e) => setMappingForm({ ...mappingForm, prefix: e.target.value })}
+                />
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label className="mc-label">EIGENER SERVER-BEFEHL (OPTIONAL, {`{player}`} WIRD ERSETZT)</label>
+                <input
+                  type="text"
+                  className="mc-input font-mono"
+                  placeholder="z.B. op {player} oder lp user {player} parent set admin"
+                  value={mappingForm.customCommand}
+                  onChange={(e) => setMappingForm({ 
+                    ...mappingForm, 
+                    customCommand: e.target.value,
+                    isOp: e.target.value.includes('op {player}')
+                  })}
                 />
               </div>
 
