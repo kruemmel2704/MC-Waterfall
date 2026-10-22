@@ -139,8 +139,11 @@ export default function DiscordAuthTab() {
     setVerifying(true);
     try {
       const q = new URLSearchParams();
-      if (gId) q.append('guildId', gId);
-      if (bToken) q.append('botToken', bToken);
+      if (gId) q.append('guildId', gId.trim());
+      // Only append botToken if it's a freshly entered token (not masked bullets or asterisks)
+      if (bToken && !bToken.includes('•') && !bToken.includes('*')) {
+        q.append('botToken', bToken.trim());
+      }
 
       const res = await fetch(`/api/discord/verify-guild?${q.toString()}`);
       if (res.ok) {
@@ -169,7 +172,7 @@ export default function DiscordAuthTab() {
       });
       if (res.ok) {
         setMessage({ type: 'success', text: 'Discord-Konfiguration erfolgreich gespeichert!' });
-        verifyGuild(config.guildId, config.botToken);
+        verifyGuild(config.guildId);
       } else {
         setMessage({ type: 'error', text: 'Fehler beim Speichern.' });
       }
@@ -433,7 +436,7 @@ export default function DiscordAuthTab() {
                 </h3>
               </div>
               <button
-                onClick={() => verifyGuild(config.guildId, config.botToken)}
+                onClick={() => verifyGuild(config.guildId)}
                 disabled={verifying || !config.guildId}
                 className="mc-btn"
                 style={{ padding: '4px 10px', fontSize: '0.7rem' }}

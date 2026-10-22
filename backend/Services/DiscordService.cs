@@ -83,24 +83,49 @@ public class DiscordService : IDiscordService
         await File.WriteAllTextAsync(_configFilePath, json);
     }
 
+    public static string SanitizeAscii(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        var clean = input.Where(c => c >= 0x21 && c <= 0x7E).ToArray();
+        return new string(clean);
+    }
+
     public async Task<DiscordGuildInfo> VerifyGuildAsync(string? guildId = null, string? botToken = null)
     {
         var config = await GetConfigAsync();
-        var targetGuildId = string.IsNullOrWhiteSpace(guildId) ? config.GuildId : guildId;
-        var targetToken = string.IsNullOrWhiteSpace(botToken) ? config.BotToken : botToken;
+        var targetGuildId = SanitizeAscii(string.IsNullOrWhiteSpace(guildId) ? config.GuildId : guildId);
+        
+        // Determine token: ignore masked bullets or stars, fallback to config.BotToken
+        string candidateToken;
+        if (!string.IsNullOrWhiteSpace(botToken) && !botToken.Contains('•') && !botToken.Contains('*'))
+        {
+            candidateToken = botToken;
+        }
+        else
+        {
+            candidateToken = config.BotToken;
+        }
+
+        var targetToken = SanitizeAscii(candidateToken);
 
         var result = new DiscordGuildInfo { Id = targetGuildId ?? string.Empty };
 
-        if (string.IsNullOrWhiteSpace(targetGuildId) || string.IsNullOrWhiteSpace(targetToken))
+        if (string.IsNullOrWhiteSpace(targetGuildId))
         {
-            result.ErrorMessage = "Bitte Guild ID (Server-ID) und Bot-Token eingeben.";
+            result.ErrorMessage = "Bitte Discord Server-ID (Guild ID) eingeben.";
+            return result;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetToken))
+        {
+            result.ErrorMessage = "Kein Bot-Token hinterlegt. Bitte trage deinen Bot-Token im Feld 'BOT TOKEN' ein und klicke auf 'KONFIGURATION SPEICHERN'.";
             return result;
         }
 
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, $"https://discord.com/api/v10/guilds/{targetGuildId}?with_counts=true");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bot", targetToken.Trim());
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bot", targetToken);
 
             var res = await _httpClient.SendAsync(req);
             if (!res.IsSuccessStatusCode)
@@ -234,12 +259,13 @@ public class DiscordService : IDiscordService
             }
 
             // Check specific roles via bot if bot token is present
-            if (!string.IsNullOrWhiteSpace(config.BotToken))
+            var cleanBotToken = SanitizeAscii(config.BotToken);
+            if (!string.IsNullOrWhiteSpace(cleanBotToken))
             {
                 try
                 {
                     using var memberReq = new HttpRequestMessage(HttpMethod.Get, $"https://discord.com/api/v10/guilds/{config.GuildId}/members/{profile.Id}");
-                    memberReq.Headers.Authorization = new AuthenticationHeaderValue("Bot", config.BotToken.Trim());
+                    memberReq.Headers.Authorization = new AuthenticationHeaderValue("Bot", cleanBotToken);
                     var memberRes = await _httpClient.SendAsync(memberReq);
                     if (memberRes.IsSuccessStatusCode)
                     {
@@ -488,10 +514,16 @@ public class DiscordService : IDiscordService
 
         // Fetch user's Discord roles from Discord Guild Member API
         var userRoleIds = new HashSet<string>();
+        var cleanToken = SanitizeAscii(config.BotToken);
+        if (string.IsNullOrWhiteSpace(cleanToken))
+        {
+            return new RoleSyncResult { Success = false, Message = "Discord Bot-Token fehlt oder ist ungültig." };
+        }
+
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, $"https://discord.com/api/v10/guilds/{config.GuildId}/members/{link.DiscordId}");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bot", config.BotToken.Trim());
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bot", cleanToken);
             var res = await _httpClient.SendAsync(req);
             if (res.IsSuccessStatusCode)
             {

@@ -50,20 +50,20 @@ public class DiscordController : ControllerBase
         var current = await _discordService.GetConfigAsync();
 
         // Preserve secrets if not updated
-        if (!string.IsNullOrWhiteSpace(newConfig.ClientSecret) && !newConfig.ClientSecret.Contains('•'))
+        if (!string.IsNullOrWhiteSpace(newConfig.ClientSecret) && !newConfig.ClientSecret.Contains('•') && !newConfig.ClientSecret.Contains('*'))
         {
-            current.ClientSecret = newConfig.ClientSecret.Trim();
+            current.ClientSecret = DiscordService.SanitizeAscii(newConfig.ClientSecret);
         }
-        if (!string.IsNullOrWhiteSpace(newConfig.BotToken) && !newConfig.BotToken.Contains('•'))
+        if (!string.IsNullOrWhiteSpace(newConfig.BotToken) && !newConfig.BotToken.Contains('•') && !newConfig.BotToken.Contains('*'))
         {
-            current.BotToken = newConfig.BotToken.Trim();
+            current.BotToken = DiscordService.SanitizeAscii(newConfig.BotToken);
         }
 
         current.IsEnabled = newConfig.IsEnabled;
-        current.ClientId = newConfig.ClientId?.Trim() ?? string.Empty;
-        current.GuildId = newConfig.GuildId?.Trim() ?? string.Empty;
-        current.RequiredRoleId = newConfig.RequiredRoleId?.Trim() ?? string.Empty;
-        current.AdminRoleId = newConfig.AdminRoleId?.Trim() ?? string.Empty;
+        current.ClientId = DiscordService.SanitizeAscii(newConfig.ClientId);
+        current.GuildId = DiscordService.SanitizeAscii(newConfig.GuildId);
+        current.RequiredRoleId = DiscordService.SanitizeAscii(newConfig.RequiredRoleId);
+        current.AdminRoleId = DiscordService.SanitizeAscii(newConfig.AdminRoleId);
         current.RedirectUri = string.IsNullOrWhiteSpace(newConfig.RedirectUri) ? "http://localhost:5173/auth/discord" : newConfig.RedirectUri.Trim();
         current.EnableMinecraftOAuth2 = newConfig.EnableMinecraftOAuth2;
         current.EnableMinecraftWhitelisting = newConfig.EnableMinecraftWhitelisting;
@@ -77,6 +77,10 @@ public class DiscordController : ControllerBase
     [HttpGet("verify-guild")]
     public async Task<ActionResult<DiscordGuildInfo>> VerifyGuild([FromQuery] string? guildId, [FromQuery] string? botToken)
     {
+        if (!string.IsNullOrEmpty(botToken) && (botToken.Contains('•') || botToken.Contains('*')))
+        {
+            botToken = null;
+        }
         var result = await _discordService.VerifyGuildAsync(guildId, botToken);
         return Ok(result);
     }
