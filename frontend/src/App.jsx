@@ -454,6 +454,13 @@ export default function App() {
             <Package size={16} /> MODRINTH PLUGINS
           </button>
           <button
+            onClick={() => setActiveTab('worlds')}
+            className={`mc-btn ${activeTab === 'worlds' ? 'mc-btn-blue' : 'mc-btn-gold'}`}
+            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
+          >
+            <Compass size={16} /> WELTEN & BACKUP
+          </button>
+          <button
             onClick={() => setActiveTab('settings')}
             className={`mc-btn ${activeTab === 'settings' ? 'mc-btn-blue' : ''}`}
             style={{ padding: '6px 14px', fontSize: '0.75rem' }}
@@ -551,6 +558,12 @@ export default function App() {
                 nodes={nodes}
                 onToast={showToast}
                 onRestartNode={handleRestartNode}
+              />
+            )}
+
+            {activeTab === 'worlds' && (
+              <WorldsTab
+                onToast={showToast}
               />
             )}
 

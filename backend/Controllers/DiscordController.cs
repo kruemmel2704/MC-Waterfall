@@ -9,11 +9,22 @@ namespace McWaterfall.Backend.Controllers;
 public class DiscordController : ControllerBase
 {
     private readonly IDiscordService _discordService;
+    private readonly IClusterManagerService _clusterService;
+    private readonly IPluginManagerService _pluginService;
+    private readonly ISshService _sshService;
     private readonly ILogger<DiscordController> _logger;
 
-    public DiscordController(IDiscordService discordService, ILogger<DiscordController> logger)
+    public DiscordController(
+        IDiscordService discordService,
+        IClusterManagerService clusterService,
+        IPluginManagerService pluginService,
+        ISshService sshService,
+        ILogger<DiscordController> logger)
     {
         _discordService = discordService;
+        _clusterService = clusterService;
+        _pluginService = pluginService;
+        _sshService = sshService;
         _logger = logger;
     }
 
