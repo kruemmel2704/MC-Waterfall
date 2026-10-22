@@ -18,6 +18,20 @@ export default function ClusterDeployModal({ node, isFullCluster, onClose, onCom
 
     connection.on('DeploymentProgress', (log) => {
       setLogs(prev => [...prev, log]);
+      if (log.step === 'Bereitstellung abgeschlossen' && log.success) {
+        setStatus('success');
+        setDeploying(false);
+        onCompleted?.();
+      }
+    });
+
+    connection.on('DeploymentCompleted', (data) => {
+      if (data.logs && Array.isArray(data.logs) && data.logs.length > 0) {
+        setLogs(data.logs);
+      }
+      setStatus(data.success ? 'success' : 'error');
+      setDeploying(false);
+      onCompleted?.();
     });
 
     connection.start().catch(() => {});
@@ -59,14 +73,26 @@ export default function ClusterDeployModal({ node, isFullCluster, onClose, onCom
       const hasError = resultLogs.some(l => !l.success);
       setStatus(hasError ? 'error' : 'success');
       onCompleted?.();
-    } catch (err) {
-      setStatus('error');
-      setLogs(prev => [
-        ...prev,
-        { step: 'Kritischer Fehler', success: false, output: err.message, timestamp: new Date().toISOString() }
-      ]);
-    } finally {
       setDeploying(false);
+    } catch (err) {
+      if (err.message && err.message.includes('504')) {
+        setLogs(prev => [
+          ...prev,
+          { 
+            step: 'Hinweis (Gateway-Timeout)', 
+            success: true, 
+            output: 'Der Webserver hat ein temporäres HTTP-Timeout (504) gemeldet. Die Installation & Downloads laufen jedoch über SSH im Hintergrund weiter. Bitte beobachte die Live-Ausgabe oben...', 
+            timestamp: new Date().toISOString() 
+          }
+        ]);
+      } else {
+        setStatus('error');
+        setLogs(prev => [
+          ...prev,
+          { step: 'Kritischer Fehler', success: false, output: err.message, timestamp: new Date().toISOString() }
+        ]);
+        setDeploying(false);
+      }
     }
   };
 

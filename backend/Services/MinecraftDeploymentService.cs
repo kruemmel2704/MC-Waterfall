@@ -86,7 +86,8 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
             if (installJavaIfMissing)
             {
                 AddLog("Java-Installation", true, "Java nicht gefunden. Installiere OpenJDK 21 via apt/dnf...");
-                var installCmd = "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jre-headless screen curl wget || sudo dnf install -y java-21-openjdk-headless screen curl wget";
+                var packageInstall = "DEBIAN_FRONTEND=noninteractive apt-get update -y && (DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jre-headless screen curl wget || DEBIAN_FRONTEND=noninteractive apt-get install -y default-jre-headless screen curl wget) || dnf install -y java-21-openjdk-headless screen curl wget";
+                var installCmd = WrapPrivilegedCommand(node, packageInstall);
                 var (exitCode, stdOut, stdErr) = await _sshService.ExecuteCommandAsync(node, installCmd, 300);
                 if (exitCode != 0)
                 {
@@ -114,12 +115,13 @@ public class MinecraftDeploymentService : IMinecraftDeploymentService
         if (!sshTest.ScreenOrTmuxInstalled)
         {
             AddLog("Paketverwaltung", true, "Installiere Screen-Dienst zur Hintergrundsteuerung...");
-            await _sshService.ExecuteCommandAsync(node, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y screen || sudo dnf install -y screen", 60);
+            var screenCmd = WrapPrivilegedCommand(node, "DEBIAN_FRONTEND=noninteractive apt-get install -y screen || dnf install -y screen");
+            await _sshService.ExecuteCommandAsync(node, screenCmd, 60);
         }
 
         // Step 4: Create Directory
         var remoteDir = node.RemoteDirectory.TrimEnd('/');
-        var dirCmd = $"mkdir -p '{remoteDir}/logs' && chmod -R 755 '{remoteDir}'";
+        var dirCmd = WrapPrivilegedCommand(node, $"mkdir -p '{remoteDir}/logs' && chmod -R 777 '{remoteDir}' && (chown -R {node.SshUsername}:{node.SshUsername} '{remoteDir}' 2>/dev/null || true)");
         await _sshService.ExecuteCommandAsync(node, dirCmd, 15);
         AddLog("Verzeichnis", true, $"Arbeitsverzeichnis {remoteDir} erstellt.");
 
@@ -479,5 +481,21 @@ fi
         if (string.IsNullOrWhiteSpace(name)) return fallback;
         var clean = new string(name.ToLowerInvariant().Where(c => char.IsLetterOrDigit(c) || c == '_' || c == '-').ToArray());
         return string.IsNullOrWhiteSpace(clean) ? fallback : clean;
+    }
+
+    private static string WrapPrivilegedCommand(ClusterNode node, string command)
+    {
+        if (string.Equals(node.SshUsername, "root", StringComparison.OrdinalIgnoreCase))
+        {
+            return command;
+        }
+
+        if (!string.IsNullOrEmpty(node.SshPassword))
+        {
+            var escapedPw = node.SshPassword.Replace("'", "'\\''");
+            return $"echo '{escapedPw}' | sudo -S -p '' bash -c \"{command.Replace("\"", "\\\"")}\"";
+        }
+
+        return $"sudo bash -c \"{command.Replace("\"", "\\\"")}\"";
     }
 }

@@ -42,6 +42,8 @@ public class DeploymentController : ControllerBase
         });
 
         await _clusterService.AddOrUpdateNodeAsync(node);
+        var success = !logs.Any(l => !l.Success);
+        await _hubContext.Clients.All.SendAsync("DeploymentCompleted", new { nodeId = id, success, logs });
         return Ok(logs);
     }
 
@@ -57,6 +59,8 @@ public class DeploymentController : ControllerBase
         });
 
         await _clusterService.SaveConfigAsync(clusterConfig);
+        var success = !logs.Any(l => !l.Success);
+        await _hubContext.Clients.All.SendAsync("DeploymentCompleted", new { success, logs });
         return Ok(logs);
     }
 
