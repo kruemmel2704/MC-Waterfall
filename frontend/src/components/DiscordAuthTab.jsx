@@ -38,6 +38,9 @@ export default function DiscordAuthTab() {
     autoSync: true
   });
 
+  const [enforcingWhitelist, setEnforcingWhitelist] = useState(false);
+  const [installingSrv, setInstallingSrv] = useState(false);
+
   const fetchAll = async () => {
     try {
       setLoading(true);
@@ -180,6 +183,33 @@ export default function DiscordAuthTab() {
       setMessage({ type: 'error', text: err.message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEnforceWhitelist = async (enable = true) => {
+    setEnforcingWhitelist(true);
+    try {
+      const res = await fetch(`/api/discord/whitelist/enforce?enabled=${enable}`, { method: 'POST' });
+      const data = await res.json();
+      setMessage({ type: data.success ? 'success' : 'error', text: data.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Fehler: ' + err.message });
+    } finally {
+      setEnforcingWhitelist(false);
+    }
+  };
+
+  const handleInstallDiscordSrv = async () => {
+    if (!window.confirm('Möchtest du das DiscordSRV-Plugin jetzt automatisch auf den Minecraft-Servern installieren und mit deinem Bot-Token verbinden?')) return;
+    setInstallingSrv(true);
+    try {
+      const res = await fetch('/api/discord/install-discordsrv', { method: 'POST' });
+      const data = await res.json();
+      setMessage({ type: data.success ? 'success' : 'error', text: data.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Fehler: ' + err.message });
+    } finally {
+      setInstallingSrv(false);
     }
   };
 
