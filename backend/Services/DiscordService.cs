@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
 using McWaterfall.Backend.Models;
 
@@ -17,6 +19,10 @@ public class DiscordService : IDiscordService
     private DiscordConfig? _cachedConfig;
     private List<MinecraftDiscordLink>? _cachedLinks;
     private readonly ConcurrentDictionary<string, MinecraftOAuthSession> _activeSessions = new();
+
+    private ClientWebSocket? _gatewayWs;
+    private CancellationTokenSource? _gatewayCts;
+    private string? _currentConnectedToken;
 
     public DiscordService(
         HttpClient httpClient, 
@@ -36,7 +42,14 @@ public class DiscordService : IDiscordService
 
     public async Task<DiscordConfig> GetConfigAsync()
     {
-        if (_cachedConfig != null) return _cachedConfig;
+        if (_cachedConfig != null)
+        {
+            if (!string.IsNullOrWhiteSpace(_cachedConfig.BotToken))
+            {
+                EnsureGatewayConnected(_cachedConfig.BotToken);
+            }
+            return _cachedConfig;
+        }
 
         await _lock.WaitAsync();
         try
@@ -54,6 +67,12 @@ public class DiscordService : IDiscordService
                 _cachedConfig = new DiscordConfig();
                 await SaveConfigInternalAsync(_cachedConfig);
             }
+
+            if (!string.IsNullOrWhiteSpace(_cachedConfig.BotToken))
+            {
+                EnsureGatewayConnected(_cachedConfig.BotToken);
+            }
+
             return _cachedConfig;
         }
         finally
@@ -69,11 +88,120 @@ public class DiscordService : IDiscordService
         {
             _cachedConfig = config;
             await SaveConfigInternalAsync(config);
+            if (!string.IsNullOrWhiteSpace(config.BotToken))
+            {
+                EnsureGatewayConnected(config.BotToken);
+            }
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    private void EnsureGatewayConnected(string? botToken)
+    {
+        var cleanToken = SanitizeAscii(botToken);
+        if (string.IsNullOrWhiteSpace(cleanToken) || cleanToken.Contains('•') || cleanToken.Contains('*'))
+        {
+            return;
+        }
+
+        if (_currentConnectedToken == cleanToken && _gatewayWs != null && _gatewayWs.State == WebSocketState.Open)
+        {
+            return;
+        }
+
+        _currentConnectedToken = cleanToken;
+        _gatewayCts?.Cancel();
+        _gatewayCts = new CancellationTokenSource();
+        var token = _gatewayCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    using var ws = new ClientWebSocket();
+                    _gatewayWs = ws;
+                    await ws.ConnectAsync(new Uri("wss://gateway.discord.gg/?v=10&encoding=json"), token);
+                    _logger.LogInformation("Connected to Discord Gateway WebSocket.");
+
+                    var buffer = new byte[16384];
+                    var segment = new ArraySegment<byte>(buffer);
+
+                    // 1. Receive Hello (opcode 10) to obtain heartbeat_interval
+                    var result = await ws.ReceiveAsync(segment, token);
+                    if (result.MessageType == WebSocketMessageType.Close) break;
+
+                    var helloJson = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    using var helloDoc = JsonDocument.Parse(helloJson);
+                    var heartbeatInterval = helloDoc.RootElement.GetProperty("d").GetProperty("heartbeat_interval").GetInt32();
+
+                    // 2. Start Heartbeat Timer Loop
+                    using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    _ = Task.Run(async () =>
+                    {
+                        var hbToken = heartbeatCts.Token;
+                        while (!hbToken.IsCancellationRequested && ws.State == WebSocketState.Open)
+                        {
+                            try
+                            {
+                                await Task.Delay(heartbeatInterval, hbToken);
+                                var hbPayload = Encoding.UTF8.GetBytes("{\"op\":1,\"d\":null}");
+                                await ws.SendAsync(new ArraySegment<byte>(hbPayload), WebSocketMessageType.Text, true, hbToken);
+                            }
+                            catch { break; }
+                        }
+                    }, heartbeatCts.Token);
+
+                    // 3. Send Identify (opcode 2) - Presence: Online, Playing on Waterfall Cluster
+                    var identifyPayload = $@"{{
+                        ""op"": 2,
+                        ""d"": {{
+                            ""token"": ""{cleanToken}"",
+                            ""intents"": 513,
+                            ""properties"": {{
+                                ""os"": ""linux"",
+                                ""browser"": ""McWaterfall"",
+                                ""device"": ""McWaterfall""
+                            }},
+                            ""presence"": {{
+                                ""status"": ""online"",
+                                ""activities"": [{{
+                                    ""name"": ""Minecraft Waterfall Cluster"",
+                                    ""type"": 0
+                                }}],
+                                ""afk"": false
+                            }}
+                        }}
+                    }}";
+
+                    var identifyBytes = Encoding.UTF8.GetBytes(identifyPayload);
+                    await ws.SendAsync(new ArraySegment<byte>(identifyBytes), WebSocketMessageType.Text, true, token);
+                    _logger.LogInformation("Discord Bot WaterfallMC is now ONLINE on Discord!");
+
+                    // 4. Keep reading incoming frames
+                    while (ws.State == WebSocketState.Open && !token.IsCancellationRequested)
+                    {
+                        var res = await ws.ReceiveAsync(segment, token);
+                        if (res.MessageType == WebSocketMessageType.Close) break;
+                    }
+
+                    heartbeatCts.Cancel();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Discord Gateway connection event: {Message}, reconnecting in 15s...", ex.Message);
+                }
+
+                if (!token.IsCancellationRequested)
+                {
+                    await Task.Delay(15000, token).ContinueWith(_ => { });
+                }
+            }
+        }, token);
     }
 
     private async Task SaveConfigInternalAsync(DiscordConfig config)

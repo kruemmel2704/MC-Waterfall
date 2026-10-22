@@ -57,4 +57,14 @@ app.UseCors("AllowReactApp");
 app.MapControllers();
 app.MapHub<ClusterHub>("/hubs/cluster");
 
+// Auto-connect Discord Gateway so bot shows as Online with presence
+using (var scope = app.Services.CreateScope())
+{
+    var discord = scope.ServiceProvider.GetRequiredService<IDiscordService>();
+    _ = Task.Run(async () =>
+    {
+        try { await discord.GetConfigAsync(); } catch { }
+    });
+}
+
 app.Run();
