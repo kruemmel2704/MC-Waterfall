@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Play, Square, RotateCw, Plus, RefreshCw, CheckCircle2, AlertCircle, Shield, Package
+  Play, Square, RotateCw, Plus, RefreshCw, CheckCircle2, AlertCircle, Shield, Package, Settings, LogOut, User as UserIcon
 } from 'lucide-react';
 
 import ClusterTopology from './components/ClusterTopology';
@@ -12,6 +12,9 @@ import PortalGuide from './components/PortalGuide';
 import DiscordAuthTab from './components/DiscordAuthTab';
 import DiscordOAuthCallbackPage from './components/DiscordOAuthCallbackPage';
 import PluginManagerTab from './components/PluginManagerTab';
+import SetupWizardPage from './components/SetupWizardPage';
+import LoginPage from './components/LoginPage';
+import SettingsTab from './components/SettingsTab';
 import { GrassBlockIcon, WaterfallBeaconIcon, CommandBlockIcon, NetherPortalIcon } from './components/MinecraftIcons';
 
 export default function App() {
@@ -25,6 +28,13 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Authentication & Setup Wizard State
+  const [authStatus, setAuthStatus] = useState(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [showSetupWizard, setShowSetupWizard] = useState(
+    window.location.pathname === '/setup' || window.location.hash === '#setup'
+  );
+
   // Check if current URL is an OAuth callback
   const isOAuthCallback = window.location.pathname.startsWith('/auth/discord') || 
                           window.location.pathname.startsWith('/discord/callback') ||
@@ -33,6 +43,42 @@ export default function App() {
   if (isOAuthCallback) {
     return <DiscordOAuthCallbackPage onBackToDashboard={() => window.location.href = '/'} />;
   }
+
+  // Verify authentication and setup status
+  const fetchAuthStatus = async () => {
+    try {
+      const token = localStorage.getItem('mc_session_token');
+      const res = await fetch('/api/auth/status', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAuthStatus(data);
+        if (!data.isConfigured) {
+          setShowSetupWizard(true);
+        }
+        return data;
+      }
+    } catch (err) {
+      console.error('Failed to fetch auth status:', err);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+    return null;
+  };
+
+  const handleLogout = async () => {
+    const token = localStorage.getItem('mc_session_token');
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+    } catch (e) {}
+    localStorage.removeItem('mc_session_token');
+    setAuthStatus(prev => prev ? { ...prev, isAuthenticated: false } : null);
+    showToast('Erfolgreich abgemeldet.');
+  };
 
   // Load cluster config
   const fetchCluster = async () => {
@@ -79,10 +125,19 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchCluster();
-    const interval = setInterval(fetchStatus, 5000);
+    fetchAuthStatus().then(status => {
+      if (status?.isAuthenticated) {
+        fetchCluster();
+      }
+    });
+
+    const interval = setInterval(() => {
+      if (authStatus?.isAuthenticated) {
+        fetchStatus();
+      }
+    }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authStatus?.isAuthenticated]);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -192,6 +247,40 @@ export default function App() {
   const onlineCount = nodes.filter(n => n.status === 'Online').length;
   const totalRamMb = nodes.reduce((acc, curr) => acc + (curr.memoryAllocationMb || 0), 0);
 
+  if (isCheckingAuth) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0e13' }}>
+        <RefreshCw size={28} className="spin-anim" color="var(--mc-aqua)" />
+        <span style={{ color: 'var(--mc-gray)', fontFamily: 'var(--mc-font)', marginLeft: '12px', fontSize: '0.8rem' }}>
+          Lade System-Authentifizierung...
+        </span>
+      </div>
+    );
+  }
+
+  if (showSetupWizard || !authStatus?.isConfigured) {
+    return (
+      <SetupWizardPage
+        onSetupCompleted={() => {
+          setShowSetupWizard(false);
+          fetchAuthStatus().then(() => fetchCluster());
+        }}
+      />
+    );
+  }
+
+  if (!authStatus?.isAuthenticated) {
+    return (
+      <LoginPage
+        authStatus={authStatus}
+        onLoginSuccess={() => {
+          fetchAuthStatus().then(() => fetchCluster());
+        }}
+        onOpenSetup={() => setShowSetupWizard(true)}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Toast Notification */}
@@ -286,6 +375,31 @@ export default function App() {
             <button onClick={handleSyncWaterfall} className="mc-btn mc-btn-blue" title="Waterfall config.yml aktualisieren und neu laden">
               <RotateCw size={13} /> PROXY SYNC
             </button>
+
+            {/* Logged in Admin Pill & Logout */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '2px solid #2d303b', paddingLeft: '10px' }}>
+              <div className="mc-slot" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 10px', height: 'auto' }}>
+                {authStatus?.avatarUrl ? (
+                  <img src={authStatus.avatarUrl} alt="Avatar" style={{ width: '18px', height: '18px', borderRadius: '50%' }} />
+                ) : (
+                  <UserIcon size={14} color="var(--mc-aqua)" />
+                )}
+                <span style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 'bold' }}>
+                  {authStatus?.username || 'Admin'}
+                </span>
+                {authStatus?.authMethod === 'discord' && (
+                  <span className="mc-badge mc-badge-proxy" style={{ fontSize: '0.55rem', padding: '1px 5px' }}>DISCORD</span>
+                )}
+              </div>
+              <button
+                onClick={handleLogout}
+                className="mc-btn mc-btn-red"
+                style={{ padding: '6px 10px' }}
+                title="Vom Dashboard abmelden"
+              >
+                <LogOut size={13} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -332,6 +446,13 @@ export default function App() {
             style={{ padding: '6px 14px', fontSize: '0.75rem' }}
           >
             <Package size={16} /> MODRINTH PLUGINS
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`mc-btn ${activeTab === 'settings' ? 'mc-btn-blue' : ''}`}
+            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
+          >
+            <Settings size={16} /> EINSTELLUNGEN
           </button>
         </div>
       </header>
@@ -424,6 +545,15 @@ export default function App() {
                 nodes={nodes}
                 onToast={showToast}
                 onRestartNode={handleRestartNode}
+              />
+            )}
+
+            {activeTab === 'settings' && (
+              <SettingsTab
+                authStatus={authStatus}
+                onLogout={handleLogout}
+                onOpenSetup={() => setShowSetupWizard(true)}
+                onToast={showToast}
               />
             )}
           </>

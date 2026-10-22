@@ -17,14 +17,49 @@ export default function DiscordOAuthCallbackPage({ onBackToDashboard }) {
       return;
     }
 
-    // Call backend to exchange code
+    const redirectUri = window.location.origin + window.location.pathname;
+
+    if (state === 'dashboard_login') {
+      // Dashboard Admin Login Flow
+      fetch('/api/auth/discord-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirectUri })
+      })
+        .then(async res => {
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || 'Discord Dashboard-Anmeldung fehlgeschlagen.');
+          }
+          if (data.token) {
+            localStorage.setItem('mc_session_token', data.token);
+          }
+          setResult({
+            isDashboardLogin: true,
+            username: data.username,
+            avatarUrl: data.avatarUrl
+          });
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1200);
+        })
+        .catch(err => {
+          setError(err.message);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+      return;
+    }
+
+    // Standard Minecraft In-Game Player Verification Flow
     fetch('/api/discord/oauth/callback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code,
         state,
-        redirectUri: window.location.origin + window.location.pathname
+        redirectUri
       })
     })
       .then(async res => {
@@ -124,10 +159,12 @@ export default function DiscordOAuthCallbackPage({ onBackToDashboard }) {
             }}>
               <CheckCircle2 size={36} color="var(--mc-green)" style={{ margin: '0 auto 10px' }} />
               <h3 className="mc-title" style={{ fontSize: '0.95rem', color: 'var(--mc-green)', marginBottom: '6px' }}>
-                ERFOLGREICH VERIFIZIERT!
+                {result.isDashboardLogin ? 'LOGIN ERFOLGREICH!' : 'ERFOLGREICH VERIFIZIERT!'}
               </h3>
               <p style={{ fontSize: '0.8rem', color: '#fff' }}>
-                Dein Account wurde akzeptiert und freigeschaltet.
+                {result.isDashboardLogin 
+                  ? `Willkommen im Dashboard, ${result.username}! Weiterleitung läuft...` 
+                  : 'Dein Account wurde akzeptiert und freigeschaltet.'}
               </p>
             </div>
 
