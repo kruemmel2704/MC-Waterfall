@@ -590,6 +590,30 @@ export default function DiscordAuthTab() {
               onChange={e => setConfig({ ...config, unverifiedKickMessage: e.target.value })}
             />
           </div>
+
+          <div style={{ marginTop: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => handleEnforceWhitelist(true)}
+              disabled={enforcingWhitelist}
+              className="mc-btn mc-btn-green"
+              style={{ flex: 1, padding: '7px 10px', fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              title="Aktiviert 'whitelist on' auf allen Paper-Servern, sodass nur noch verifizierte Discord-Mitglieder beitreten können."
+            >
+              <ShieldCheck size={14} /> {enforcingWhitelist ? 'AKTIVIERE...' : 'WHITELIST JETZT ERZWINGEN (ON)'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleInstallDiscordSrv}
+              disabled={installingSrv}
+              className="mc-btn mc-btn-purple"
+              style={{ flex: 1, padding: '7px 10px', fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              title="Installiert das bekannte DiscordSRV-Plugin von Modrinth auf den Servern und verknüpft automatisch deinen Bot-Token für In-Game Chat."
+            >
+              <Sparkles size={14} /> {installingSrv ? 'INSTALLIERE...' : 'DISCORDSRV (CHAT-MOD) INSTALLIEREN'}
+            </button>
+          </div>
         </div>
       </div>
 

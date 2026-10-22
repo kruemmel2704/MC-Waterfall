@@ -272,11 +272,29 @@ public class DiscordController : ControllerBase
             return BadRequest(new { success = false, message = "Keine Minecraft-Server gefunden." });
         }
 
+        // 1. Fetch latest DiscordSRV version from Modrinth
+        var versions = await _pluginService.GetModrinthVersionsAsync("discordsrv", "paper");
+        var latest = versions.FirstOrDefault();
+        var primaryFile = latest?.Files.FirstOrDefault(f => f.Primary) ?? latest?.Files.FirstOrDefault();
+
+        if (primaryFile == null || string.IsNullOrWhiteSpace(primaryFile.Url))
+        {
+            return BadRequest(new { success = false, message = "DiscordSRV konnte auf Modrinth nicht gefunden werden." });
+        }
+
         foreach (var node in targetNodes)
         {
             try
             {
-                var installRes = await _pluginService.InstallPluginFromModrinthAsync("discordsrv", null, node.Id);
+                var req = new InstallPluginRequest
+                {
+                    NodeId = node.Id,
+                    DownloadUrl = primaryFile.Url,
+                    FileName = primaryFile.Filename,
+                    PluginName = "DiscordSRV"
+                };
+
+                var installRes = await _pluginService.InstallPluginAsync(req);
                 if (installRes.Success)
                 {
                     if (!string.IsNullOrWhiteSpace(discord.BotToken))
