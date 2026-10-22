@@ -27,6 +27,7 @@ builder.Services.AddSingleton<ISshService, SshService>();
 builder.Services.AddSingleton<IMinecraftDeploymentService, MinecraftDeploymentService>();
 builder.Services.AddSingleton<IClusterManagerService, ClusterManagerService>();
 builder.Services.AddSingleton<IDiscordService, DiscordService>();
+builder.Services.AddSingleton<IPluginManagerService, PluginManagerService>();
 
 // CORS policy for React Frontend (supports external IP, domain, and Docker network)
 builder.Services.AddCors(options =>

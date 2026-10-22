@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Play, Square, RotateCw, Plus, RefreshCw, CheckCircle2, AlertCircle, Shield
+  Play, Square, RotateCw, Plus, RefreshCw, CheckCircle2, AlertCircle, Shield, Package
 } from 'lucide-react';
 
 import ClusterTopology from './components/ClusterTopology';
@@ -11,6 +11,7 @@ import ClusterDeployModal from './components/ClusterDeployModal';
 import PortalGuide from './components/PortalGuide';
 import DiscordAuthTab from './components/DiscordAuthTab';
 import DiscordOAuthCallbackPage from './components/DiscordOAuthCallbackPage';
+import PluginManagerTab from './components/PluginManagerTab';
 import { GrassBlockIcon, WaterfallBeaconIcon, CommandBlockIcon, NetherPortalIcon } from './components/MinecraftIcons';
 
 export default function App() {
@@ -325,6 +326,13 @@ export default function App() {
           >
             <Shield size={16} /> DISCORD AUTH & OAUTH2
           </button>
+          <button
+            onClick={() => setActiveTab('plugins')}
+            className={`mc-btn ${activeTab === 'plugins' ? 'mc-btn-blue' : 'mc-btn-green'}`}
+            style={{ padding: '6px 14px', fontSize: '0.75rem' }}
+          >
+            <Package size={16} /> MODRINTH PLUGINS
+          </button>
         </div>
       </header>
 
@@ -409,6 +417,14 @@ export default function App() {
 
             {activeTab === 'discord' && (
               <DiscordAuthTab />
+            )}
+
+            {activeTab === 'plugins' && (
+              <PluginManagerTab
+                nodes={nodes}
+                onToast={showToast}
+                onRestartNode={handleRestartNode}
+              />
             )}
           </>
         )}

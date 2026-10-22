@@ -420,6 +420,9 @@ proxies:
     enabled: false
     online-mode: false
     secret: ''
+chunk-system:
+  worker-threads: -1
+  io-threads: -1
 ";
     }
 
@@ -427,6 +430,11 @@ proxies:
     {
         var ram = node.MemoryAllocationMb > 0 ? node.MemoryAllocationMb : 4096;
         var sessionName = $"mc_{node.Id}";
+        
+        // High-Performance Multi-Core & Aikar's G1GC Flags:
+        // -XX:+UseG1GC with parallel threads distributes garbage collection across all CPU cores
+        // -Dpaper.use-simd=true enables AVX2/SIMD vector math across multiple cores
+        var jvmFlags = $"-Xms{ram}M -Xmx{ram}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1ReservePercent=20 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Dpaper.use-simd=true";
         
         return $@"#!/usr/bin/env bash
 # Start script for {node.Name} ({node.Role})
@@ -440,8 +448,8 @@ if screen -list | grep -q ""\.${{SESSION}}[[:space:]]""; then
     exit 0
 fi
 
-echo ""Starte {node.Name} mit {ram}MB RAM...""
-screen -dmS ""${{SESSION}}"" java -Xms{ram}M -Xmx{ram}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -jar server.jar nogui
+echo ""Starte {node.Name} mit {ram}MB RAM (Multi-Core Optimierung aktiv)...""
+screen -dmS ""${{SESSION}}"" java {jvmFlags} -jar server.jar nogui
 
 sleep 2
 if screen -list | grep -q ""\.${{SESSION}}[[:space:]]""; then

@@ -186,6 +186,31 @@ public class SshService : ISshService
         });
     }
 
+    public async Task UploadBinaryFileAsync(ClusterNode node, string remoteFilePath, Stream content)
+    {
+        await Task.Run(() =>
+        {
+            var connInfo = CreateConnectionInfo(node, 30);
+            using var sftp = new SftpClient(connInfo);
+            sftp.Connect();
+
+            var directory = Path.GetDirectoryName(remoteFilePath)?.Replace('\\', '/');
+            if (!string.IsNullOrEmpty(directory))
+            {
+                EnsureDirectoryRecursive(sftp, directory);
+            }
+
+            sftp.UploadFile(content, remoteFilePath, true);
+            sftp.Disconnect();
+        });
+    }
+
+    public async Task UploadBinaryFileAsync(ClusterNode node, string remoteFilePath, byte[] content)
+    {
+        using var memoryStream = new MemoryStream(content);
+        await UploadBinaryFileAsync(node, remoteFilePath, memoryStream);
+    }
+
     public async Task<string> ReadTextFileAsync(ClusterNode node, string remoteFilePath)
     {
         return await Task.Run(() =>
