@@ -243,4 +243,61 @@ public class DiscordController : ControllerBase
         var guildInfo = await _discordService.VerifyGuildAsync();
         return Ok(guildInfo.Roles);
     }
+
+    [HttpPost("whitelist/enforce")]
+    public async Task<IActionResult> EnforceWhitelist([FromQuery] bool enabled = true)
+    {
+        var cluster = await _clusterService.GetConfigAsync();
+        var details = new List<string>();
+        foreach (var node in cluster.Nodes.Where(n => n.Role != ServerRole.WaterfallProxy))
+        {
+            var cmd = enabled ? "whitelist on" : "whitelist off";
+            await _clusterService.SendCommandAsync(node.Id, cmd);
+            await _clusterService.SendCommandAsync(node.Id, "whitelist reload");
+            details.Add($"{node.Name}: Whitelist {(enabled ? "aktiviert (nur noch verifizierte Spieler können beitreten)" : "deaktiviert")}.");
+        }
+        return Ok(new { success = true, message = $"Whitelist erfolgreich auf allen Servern {(enabled ? "aktiviert" : "deaktiviert")}!", details });
+    }
+
+    [HttpPost("install-discordsrv")]
+    public async Task<IActionResult> InstallDiscordSrv()
+    {
+        var cluster = await _clusterService.GetConfigAsync();
+        var discord = await _discordService.GetConfigAsync();
+        var details = new List<string>();
+
+        var targetNodes = cluster.Nodes.Where(n => n.Role != ServerRole.WaterfallProxy).ToList();
+        if (targetNodes.Count == 0)
+        {
+            return BadRequest(new { success = false, message = "Keine Minecraft-Server gefunden." });
+        }
+
+        foreach (var node in targetNodes)
+        {
+            try
+            {
+                var installRes = await _pluginService.InstallPluginFromModrinthAsync("discordsrv", null, node.Id);
+                if (installRes.Success)
+                {
+                    if (!string.IsNullOrWhiteSpace(discord.BotToken))
+                    {
+                        var configPath = $"{node.RemoteDirectory.TrimEnd('/')}/plugins/DiscordSRV/config.yml";
+                        var updateTokenCmd = $"mkdir -p '{node.RemoteDirectory.TrimEnd('/')}/plugins/DiscordSRV' && if [ -f '{configPath}' ]; then sed -i 's/^BotToken:.*/BotToken: \"{discord.BotToken}\"/' '{configPath}'; fi";
+                        await _sshService.ExecuteCommandAsync(node, updateTokenCmd, 10);
+                    }
+                    details.Add($"{node.Name}: DiscordSRV installiert & vorkonfiguriert.");
+                }
+                else
+                {
+                    details.Add($"{node.Name}: {installRes.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                details.Add($"{node.Name}: Fehler bei Installation: {ex.Message}");
+            }
+        }
+
+        return Ok(new { success = true, message = "DiscordSRV-Bereitstellung abgeschlossen!", details });
+    }
 }
