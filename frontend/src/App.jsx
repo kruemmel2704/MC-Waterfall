@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Play, Square, RotateCw, Plus, RefreshCw, CheckCircle2, AlertCircle, Shield, Package, Settings, LogOut, User as UserIcon
+  Play, Square, RotateCw, Plus, RefreshCw, CheckCircle2, AlertCircle, Shield, Package, Settings, LogOut, User as UserIcon, Compass
 } from 'lucide-react';
 
 import ClusterTopology from './components/ClusterTopology';
@@ -12,6 +12,7 @@ import PortalGuide from './components/PortalGuide';
 import DiscordAuthTab from './components/DiscordAuthTab';
 import DiscordOAuthCallbackPage from './components/DiscordOAuthCallbackPage';
 import PluginManagerTab from './components/PluginManagerTab';
+import WorldsTab from './components/WorldsTab';
 import SetupWizardPage from './components/SetupWizardPage';
 import LoginPage from './components/LoginPage';
 import SettingsTab from './components/SettingsTab';
