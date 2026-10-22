@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Shield, Server, HardDrive, Key, CheckCircle2, AlertCircle, 
-  ArrowRight, ArrowLeft, Sparkles, RefreshCw, Lock, User
+  ArrowRight, ArrowLeft, Sparkles, RefreshCw, Lock, User, ShieldCheck
 } from 'lucide-react';
 import { GrassBlockIcon, WaterfallBeaconIcon, CommandBlockIcon, NetherPortalIcon } from './MinecraftIcons';
 
@@ -9,6 +9,18 @@ export default function SetupWizardPage({ onSetupCompleted }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [alreadyConfigured, setAlreadyConfigured] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.isConfigured) {
+          setAlreadyConfigured(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -155,6 +167,57 @@ export default function SetupWizardPage({ onSetupCompleted }) {
       setLoading(false);
     }
   };
+
+  if (alreadyConfigured) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: '#0d0e13',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px'
+      }}>
+        <div className="mc-panel" style={{ maxWidth: '520px', width: '100%', textAlign: 'center', padding: '36px 28px' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            background: 'rgba(244, 67, 54, 0.15)',
+            border: '2px solid var(--mc-red)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--mc-red)',
+            margin: '0 auto 16px',
+            borderRadius: '4px'
+          }}>
+            <Lock size={32} />
+          </div>
+          <h2 className="mc-title" style={{ fontSize: '1.1rem', color: '#fff', marginBottom: '8px' }}>
+            SETUP BEREITS ABGESCHLOSSEN
+          </h2>
+          <p style={{ fontSize: '0.8rem', color: 'var(--mc-gray)', lineHeight: 1.5, marginBottom: '24px' }}>
+            Das System-Setup kann nur <strong>einmalig</strong> ausgeführt werden und ist für diese Instanz bereits abgeschlossen.
+            <br /><br />
+            Alle Änderungen (Admin-Passwort, Discord, Server-IPs) können nach dem Login im Dashboard unter <strong>Einstellungen</strong> vorgenommen werden.
+          </p>
+          <button
+            onClick={() => {
+              if (onSetupCompleted) {
+                onSetupCompleted();
+              } else {
+                window.location.href = '/';
+              }
+            }}
+            className="mc-btn mc-btn-green"
+            style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
+          >
+            ZUM LOGIN / DASHBOARD
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{

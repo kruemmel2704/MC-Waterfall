@@ -223,6 +223,15 @@ public class AuthService : IAuthService
         var (hash, salt) = HashPassword(request.AdminPassword);
 
         var settings = await GetSettingsAsync();
+        if (settings.IsConfigured || settings.SetupCompletedAt != null)
+        {
+            return new LoginResponse 
+            { 
+                Success = false, 
+                Message = "Das Setup wurde bereits abgeschlossen und ist gesperrt. Änderungen können über die Einstellungen im Dashboard vorgenommen werden." 
+            };
+        }
+
         settings.IsConfigured = true;
         settings.AdminUsername = request.AdminUsername.Trim();
         settings.AdminPasswordHash = hash;

@@ -18,4 +18,10 @@ public interface IDiscordService
     Task<bool> IsPlayerAuthorizedAsync(string minecraftUsername);
     Task<MinecraftOAuthSession> CreateOAuthSessionAsync(string minecraftUsername);
     Task<MinecraftOAuthSession?> GetOAuthSessionAsync(string sessionId);
+
+    // Role Synchronization (Discord -> LuckPerms / Minecraft)
+    Task<List<DiscordRoleMapping>> GetRoleMappingsAsync();
+    Task SaveRoleMappingsAsync(List<DiscordRoleMapping> mappings);
+    Task<RoleSyncResult> SyncPlayerRolesAsync(string minecraftUsername);
+    Task<RoleSyncResult> SyncAllPlayersRolesAsync();
 }

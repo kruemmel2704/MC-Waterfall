@@ -383,6 +383,17 @@ public class DiscordService : IDiscordService
             _logger.LogWarning(ex, "Failed to run whitelist add command for {Player}", minecraftUsername);
         }
 
+        // Automatic Role Sync if enabled
+        var discordConf = await GetConfigAsync();
+        if (discordConf.EnableRoleSync && discordConf.RoleMappings?.Count > 0)
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await SyncPlayerRolesAsync(minecraftUsername); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Background role sync failed for {Player}", minecraftUsername); }
+            });
+        }
+
         return existing;
     }
 
@@ -439,6 +450,147 @@ public class DiscordService : IDiscordService
     {
         _activeSessions.TryGetValue(sessionId, out var session);
         return Task.FromResult(session);
+    }
+
+    public async Task<List<DiscordRoleMapping>> GetRoleMappingsAsync()
+    {
+        var config = await GetConfigAsync();
+        return config.RoleMappings ?? new List<DiscordRoleMapping>();
+    }
+
+    public async Task SaveRoleMappingsAsync(List<DiscordRoleMapping> mappings)
+    {
+        var config = await GetConfigAsync();
+        config.RoleMappings = mappings;
+        await SaveConfigAsync(config);
+    }
+
+    public async Task<RoleSyncResult> SyncPlayerRolesAsync(string minecraftUsername)
+    {
+        var links = await GetLinkedPlayersAsync();
+        var link = links.FirstOrDefault(l => l.MinecraftUsername.Equals(minecraftUsername, StringComparison.OrdinalIgnoreCase));
+        if (link == null)
+        {
+            return new RoleSyncResult { Success = false, Message = $"Spieler '{minecraftUsername}' ist nicht mit Discord verknüpft." };
+        }
+
+        var config = await GetConfigAsync();
+        if (string.IsNullOrWhiteSpace(config.GuildId) || string.IsNullOrWhiteSpace(config.BotToken))
+        {
+            return new RoleSyncResult { Success = false, Message = "Discord Bot-Token oder Server-ID (Guild ID) fehlt." };
+        }
+
+        var mappings = config.RoleMappings.Where(m => m.AutoSync).OrderByDescending(m => m.Priority).ToList();
+        if (mappings.Count == 0)
+        {
+            return new RoleSyncResult { Success = true, Message = "Keine aktiven Rollen-Zuordnungen vorhanden.", PlayersSynced = 0 };
+        }
+
+        // Fetch user's Discord roles from Discord Guild Member API
+        var userRoleIds = new HashSet<string>();
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"https://discord.com/api/v10/guilds/{config.GuildId}/members/{link.DiscordId}");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bot", config.BotToken.Trim());
+            var res = await _httpClient.SendAsync(req);
+            if (res.IsSuccessStatusCode)
+            {
+                var doc = await res.Content.ReadFromJsonAsync<JsonElement>();
+                if (doc.TryGetProperty("roles", out var rProp) && rProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var r in rProp.EnumerateArray())
+                    {
+                        var rid = r.GetString();
+                        if (!string.IsNullOrEmpty(rid)) userRoleIds.Add(rid);
+                    }
+                }
+            }
+            else
+            {
+                return new RoleSyncResult { Success = false, Message = $"Discord-Mitglied konnte nicht abgefragt werden (Status {(int)res.StatusCode})." };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query Discord member {UserId}", link.DiscordId);
+            return new RoleSyncResult { Success = false, Message = $"Discord-Verbindungsfehler: {ex.Message}" };
+        }
+
+        // Find highest priority matching mapping
+        var matchedMapping = mappings.FirstOrDefault(m => userRoleIds.Contains(m.DiscordRoleId));
+        var assignedGroup = matchedMapping != null ? matchedMapping.MinecraftGroup : "default";
+
+        var cluster = await _clusterService.GetConfigAsync();
+        var details = new List<string>();
+
+        // Commands to execute on server(s)
+        var commands = new List<string>();
+        if (matchedMapping != null && !string.IsNullOrWhiteSpace(matchedMapping.CustomCommand))
+        {
+            commands.Add(matchedMapping.CustomCommand.Replace("{player}", link.MinecraftUsername).Replace("{group}", matchedMapping.MinecraftGroup));
+        }
+        else
+        {
+            // Standard LuckPerms rank assignment command
+            commands.Add($"lp user {link.MinecraftUsername} parent set {assignedGroup}");
+        }
+
+        if (matchedMapping != null && !string.IsNullOrWhiteSpace(matchedMapping.Prefix))
+        {
+            commands.Add($"lp group {assignedGroup} meta setprefix {matchedMapping.Priority} \"{matchedMapping.Prefix}\"");
+        }
+
+        // Send command to all online nodes (Proxy + Dimensions)
+        foreach (var node in cluster.Nodes)
+        {
+            foreach (var cmd in commands)
+            {
+                await _clusterService.SendCommandAsync(node.Id, cmd);
+            }
+        }
+
+        var detailMsg = matchedMapping != null 
+            ? $"{link.MinecraftUsername} -> Rang '{assignedGroup}' (Discord: {matchedMapping.DiscordRoleName})"
+            : $"{link.MinecraftUsername} -> Rang 'default' (Keine passende Discord-Rolle)";
+        details.Add(detailMsg);
+
+        return new RoleSyncResult
+        {
+            Success = true,
+            Message = $"Rollen für '{link.MinecraftUsername}' erfolgreich synchronisiert.",
+            PlayersSynced = 1,
+            Details = details
+        };
+    }
+
+    public async Task<RoleSyncResult> SyncAllPlayersRolesAsync()
+    {
+        var links = await GetLinkedPlayersAsync();
+        if (links.Count == 0)
+        {
+            return new RoleSyncResult { Success = true, Message = "Keine verknüpften Spieler vorhanden.", PlayersSynced = 0 };
+        }
+
+        var totalSynced = 0;
+        var allDetails = new List<string>();
+
+        foreach (var link in links)
+        {
+            var res = await SyncPlayerRolesAsync(link.MinecraftUsername);
+            if (res.Success && res.PlayersSynced > 0)
+            {
+                totalSynced++;
+                allDetails.AddRange(res.Details);
+            }
+        }
+
+        return new RoleSyncResult
+        {
+            Success = true,
+            Message = $"{totalSynced} von {links.Count} Spielern erfolgreich synchronisiert.",
+            PlayersSynced = totalSynced,
+            Details = allDetails
+        };
     }
 
     private async Task SaveLinksInternalAsync(List<MinecraftDiscordLink> links)

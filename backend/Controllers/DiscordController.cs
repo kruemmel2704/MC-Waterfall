@@ -194,4 +194,38 @@ public class DiscordController : ControllerBase
         };
         return Ok(guide);
     }
+
+    [HttpGet("roles/mappings")]
+    public async Task<ActionResult<List<DiscordRoleMapping>>> GetRoleMappings()
+    {
+        var mappings = await _discordService.GetRoleMappingsAsync();
+        return Ok(mappings);
+    }
+
+    [HttpPost("roles/mappings")]
+    public async Task<IActionResult> SaveRoleMappings([FromBody] List<DiscordRoleMapping> mappings)
+    {
+        await _discordService.SaveRoleMappingsAsync(mappings);
+        return Ok(new { success = true, message = "Rollen-Zuordnungen erfolgreich gespeichert!" });
+    }
+
+    [HttpPost("roles/sync")]
+    public async Task<ActionResult<RoleSyncResult>> SyncRoles([FromBody] SyncPlayerRolesRequest? request)
+    {
+        if (!string.IsNullOrWhiteSpace(request?.MinecraftUsername))
+        {
+            var res = await _discordService.SyncPlayerRolesAsync(request.MinecraftUsername.Trim());
+            return Ok(res);
+        }
+
+        var allRes = await _discordService.SyncAllPlayersRolesAsync();
+        return Ok(allRes);
+    }
+
+    [HttpGet("guild/roles")]
+    public async Task<ActionResult<List<DiscordRoleInfo>>> GetGuildRoles()
+    {
+        var guildInfo = await _discordService.VerifyGuildAsync();
+        return Ok(guildInfo.Roles);
+    }
 }

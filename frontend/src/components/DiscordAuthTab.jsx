@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Key, Shield, CheckCircle2, AlertCircle, RefreshCw, ExternalLink, 
-  Trash2, Plus, Sparkles, UserCheck, ShieldCheck, Copy, Check
+  Trash2, Plus, Sparkles, UserCheck, ShieldCheck, Copy, Check, Zap, Users, Crown
 } from 'lucide-react';
-import { CommandBlockIcon, RedstoneTorchIcon, GrassBlockIcon } from './MinecraftIcons';
+import { CommandBlockIcon, RedstoneTorchIcon, GrassBlockIcon, WaterfallBeaconIcon } from './MinecraftIcons';
 
 export default function DiscordAuthTab() {
   const [config, setConfig] = useState(null);
@@ -23,12 +23,28 @@ export default function DiscordAuthTab() {
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState(null);
 
+  // Role Synchronization State
+  const [roleMappings, setRoleMappings] = useState([]);
+  const [syncingRoles, setSyncingRoles] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [showMappingModal, setShowMappingModal] = useState(false);
+  const [mappingForm, setMappingForm] = useState({
+    discordRoleId: '',
+    discordRoleName: '',
+    discordRoleColor: 0,
+    minecraftGroup: 'vip',
+    prefix: '&b[VIP] ',
+    priority: 10,
+    autoSync: true
+  });
+
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [cfgRes, linksRes] = await Promise.all([
+      const [cfgRes, linksRes, rolesRes] = await Promise.all([
         fetch('/api/discord/config'),
-        fetch('/api/discord/minecraft/links')
+        fetch('/api/discord/minecraft/links'),
+        fetch('/api/discord/roles/mappings')
       ]);
 
       if (cfgRes.ok) {
@@ -43,10 +59,79 @@ export default function DiscordAuthTab() {
         const linksData = await linksRes.json();
         setLinkedPlayers(linksData);
       }
+
+      if (rolesRes.ok) {
+        const rolesData = await rolesRes.json();
+        setRoleMappings(rolesData || []);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncRoles = async () => {
+    setSyncingRoles(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/discord/roles/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      setSyncResult(data);
+      if (data.success) {
+        setMessage({ type: 'success', text: data.message });
+      } else {
+        setMessage({ type: 'error', text: data.message });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Fehler beim Synchronisieren: ' + err.message });
+    } finally {
+      setSyncingRoles(false);
+    }
+  };
+
+  const handleSaveRoleMapping = async (e) => {
+    e.preventDefault();
+    if (!mappingForm.discordRoleId) {
+      alert('Bitte eine Discord-Rolle auswählen.');
+      return;
+    }
+
+    const updated = [...roleMappings, { ...mappingForm, id: Math.random().toString(36).slice(2, 9) }];
+    try {
+      const res = await fetch('/api/discord/roles/mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (res.ok) {
+        setRoleMappings(updated);
+        setShowMappingModal(false);
+        setMessage({ type: 'success', text: 'Rollen-Zuordnung erfolgreich hinzugefügt!' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleDeleteRoleMapping = async (id) => {
+    const updated = roleMappings.filter(m => m.id !== id);
+    try {
+      const res = await fetch('/api/discord/roles/mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (res.ok) {
+        setRoleMappings(updated);
+        setMessage({ type: 'success', text: 'Rollen-Zuordnung entfernt.' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
     }
   };
 
@@ -649,6 +734,210 @@ export default function DiscordAuthTab() {
         </div>
       </div>
 
+      {/* 4. DISCORD ⬌ MINECRAFT ROLLEN-SYNCHRONISATION (LUCKPERMS) */}
+      <div className="mc-panel" style={{ marginTop: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Crown size={22} color="var(--mc-yellow)" />
+              <h2 className="mc-subtitle" style={{ margin: 0, color: 'var(--mc-yellow)' }}>
+                4. DISCORD ⬌ MINECRAFT ROLLEN-SYNCHRONISATION (LUCKPERMS)
+              </h2>
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--mc-gray)' }}>
+              Verteile Discord-Rollen automatisch auf Minecraft-Ränge (LuckPerms Groups) & vergebe Chat-Präfixe.
+            </p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => {
+                if (guildInfo?.roles?.length > 0) {
+                  const firstRole = guildInfo.roles[0];
+                  setMappingForm({
+                    discordRoleId: firstRole.id,
+                    discordRoleName: firstRole.name,
+                    discordRoleColor: firstRole.color,
+                    minecraftGroup: 'vip',
+                    prefix: '&b[VIP] ',
+                    priority: 10,
+                    autoSync: true
+                  });
+                } else {
+                  setMappingForm({
+                    discordRoleId: '',
+                    discordRoleName: '',
+                    discordRoleColor: 0,
+                    minecraftGroup: 'vip',
+                    prefix: '&b[VIP] ',
+                    priority: 10,
+                    autoSync: true
+                  });
+                }
+                setShowMappingModal(true);
+              }}
+              className="mc-btn mc-btn-green"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={16} /> ROLLE VERKNÜPFEN
+            </button>
+
+            <button
+              onClick={handleSyncRoles}
+              disabled={syncingRoles || roleMappings.length === 0}
+              className="mc-btn mc-btn-blue"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              title="Aktualisiert die LuckPerms-Ränge aller verifizierten Spieler auf allen Cluster-Servern"
+            >
+              <RefreshCw size={16} className={syncingRoles ? 'animate-spin' : ''} />
+              {syncingRoles ? 'SYNCHRONISIERE...' : 'ALLE ROLLEN JETZT SYNCHRONISIEREN'}
+            </button>
+          </div>
+        </div>
+
+        {/* Sync Info / Result Banner */}
+        {syncResult && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            background: syncResult.success ? 'rgba(76, 175, 80, 0.15)' : 'rgba(244, 67, 54, 0.15)',
+            border: `2px solid ${syncResult.success ? 'var(--mc-green)' : 'var(--mc-red)'}`,
+            borderRadius: '4px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: syncResult.details?.length ? '6px' : '0' }}>
+              {syncResult.success ? <CheckCircle2 size={18} color="var(--mc-green)" /> : <AlertCircle size={18} color="var(--mc-red)" />}
+              <strong style={{ fontSize: '0.85rem', color: syncResult.success ? 'var(--mc-green)' : 'var(--mc-red)' }}>
+                {syncResult.message}
+              </strong>
+            </div>
+            {syncResult.details?.length > 0 && (
+              <ul style={{ margin: '4px 0 0 20px', padding: 0, fontSize: '0.75rem', color: 'var(--mc-gray)' }}>
+                {syncResult.details.map((d, idx) => (
+                  <li key={idx} className="font-mono">{d}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* Explain LuckPerms command mechanism */}
+        <div style={{
+          background: 'rgba(255, 170, 0, 0.08)',
+          border: '1px solid rgba(255, 170, 0, 0.3)',
+          padding: '12px 14px',
+          marginBottom: '16px',
+          fontSize: '0.8rem',
+          color: '#e0e0e0',
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'flex-start'
+        }}>
+          <ShieldCheck size={20} color="var(--mc-gold)" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <strong style={{ color: 'var(--mc-gold)' }}>Automatische LuckPerms-Verteilung:</strong>
+            <p style={{ margin: '4px 0 0 0', lineHeight: 1.4 }}>
+              Sobald ein Spieler seinen Minecraft-Account per Discord OAuth2 verknüpft oder beitritt, ermittelt das System seine Discord-Rollen und führt auf dem Minecraft-Cluster automatisch:
+              <br />
+              <code className="font-mono" style={{ color: 'var(--mc-aqua)', background: '#111', padding: '2px 6px', borderRadius: '3px', display: 'inline-block', marginTop: '4px' }}>
+                lp user &lt;Spieler&gt; parent set &lt;Gruppe&gt;
+              </code>
+              {' '}sowie Prefix-Definitionen aus. Bei mehreren Rollen gewinnt die mit der höchsten Priorität!
+            </p>
+          </div>
+        </div>
+
+        {/* Role Mappings Table */}
+        {roleMappings.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '30px 20px',
+            background: '#12141a',
+            border: '2px dashed #2e3347'
+          }}>
+            <Users size={32} color="var(--mc-gray)" style={{ margin: '0 auto 10px', display: 'block', opacity: 0.5 }} />
+            <p style={{ color: 'var(--mc-gray)', fontSize: '0.85rem', margin: 0 }}>
+              Noch keine Rollen-Verknüpfungen angelegt.
+            </p>
+            <p style={{ color: '#888', fontSize: '0.75rem', marginTop: '4px' }}>
+              Klicke oben auf <strong>"ROLLE VERKNÜPFEN"</strong>, um Discord-Rollen (z.B. Moderator, VIP, Booster) mit Minecraft LuckPerms-Gruppen zu verbinden.
+            </p>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto', border: '2px solid #2e3347' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#12141a', borderBottom: '2px solid #2e3347' }}>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>DISCORD ROLLE</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>MINECRAFT GRUPPE (LUCKPERMS)</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>CHAT-PRÄFIX</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>PRIORITÄT</th>
+                  <th style={{ padding: '10px 14px', color: 'var(--mc-yellow)', fontWeight: 600 }}>STATUS</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--mc-yellow)', fontWeight: 600 }}>AKTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roleMappings.map((m) => (
+                  <tr key={m.id} style={{ borderBottom: '1px solid #1f2330', background: '#0e1017' }}>
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: m.discordRoleColor ? `#${m.discordRoleColor.toString(16).padStart(6, '0')}` : 'var(--mc-aqua)'
+                        }} />
+                        <strong style={{ color: '#fff' }}>@{m.discordRoleName || m.discordRoleId}</strong>
+                        <span className="font-mono" style={{ fontSize: '0.7rem', color: 'var(--mc-gray)' }}>({m.discordRoleId})</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span className="mc-badge mc-badge-diamond" style={{ fontSize: '0.75rem', textTransform: 'lowercase' }}>
+                        {m.minecraftGroup}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px' }} className="font-mono">
+                      {m.prefix ? (
+                        <span style={{
+                          background: '#1a1d26',
+                          border: '1px solid #333',
+                          padding: '2px 8px',
+                          borderRadius: '3px',
+                          color: 'var(--mc-yellow)',
+                          fontSize: '0.8rem'
+                        }}>
+                          {m.prefix}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--mc-gray)', fontSize: '0.75rem' }}>-</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 14px' }} className="font-mono">
+                      <span style={{ color: 'var(--mc-aqua)', fontWeight: 700 }}>{m.priority}</span>
+                    </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span className="mc-badge mc-badge-overworld" style={{ fontSize: '0.65rem' }}>
+                        AKTIV
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <button
+                        onClick={() => handleDeleteRoleMapping(m.id)}
+                        className="mc-btn mc-btn-red"
+                        style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                        title="Verknüpfung löschen"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Manual Link Modal */}
       {showManualModal && (
         <div style={{
@@ -708,6 +997,107 @@ export default function DiscordAuthTab() {
                 </button>
                 <button type="submit" className="mc-btn mc-btn-green">
                   VERKNÜPFEN & WHITELISTEN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Role Mapping Modal */}
+      {showMappingModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div className="mc-modal" style={{ width: '100%', maxWidth: '540px', padding: '24px' }}>
+            <h3 className="mc-title" style={{ fontSize: '0.95rem', color: '#fff', marginBottom: '14px' }}>
+              DISCORD ⬌ MINECRAFT ROLLE VERKNÜPFEN
+            </h3>
+            <form onSubmit={handleSaveRoleMapping}>
+              <div style={{ marginBottom: '12px' }}>
+                <label className="mc-label">DISCORD ROLLE AUSWÄHLEN</label>
+                {guildInfo?.roles?.length > 0 ? (
+                  <select
+                    className="mc-input"
+                    value={mappingForm.discordRoleId}
+                    onChange={(e) => {
+                      const selectedRole = guildInfo.roles.find(r => r.id === e.target.value);
+                      setMappingForm({
+                        ...mappingForm,
+                        discordRoleId: e.target.value,
+                        discordRoleName: selectedRole?.name || '',
+                        discordRoleColor: selectedRole?.color || 0
+                      });
+                    }}
+                    style={{ width: '100%', background: '#12141a', color: '#fff' }}
+                  >
+                    {guildInfo.roles.map(r => (
+                      <option key={r.id} value={r.id}>
+                        @{r.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    className="mc-input font-mono"
+                    placeholder="Discord Role ID (z.B. 1234567890)"
+                    value={mappingForm.discordRoleId}
+                    onChange={(e) => setMappingForm({ ...mappingForm, discordRoleId: e.target.value, discordRoleName: 'Benutzerdefiniert' })}
+                    required
+                  />
+                )}
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label className="mc-label">MINECRAFT RANG / GRUPPEN-NAME (LUCKPERMS)</label>
+                <input
+                  type="text"
+                  className="mc-input"
+                  placeholder="z.B. admin, mod, vip, premium, booster, default"
+                  value={mappingForm.minecraftGroup}
+                  onChange={(e) => setMappingForm({ ...mappingForm, minecraftGroup: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label className="mc-label">CHAT-PRÄFIX (FARBCODES ERLAUBT, Z.B. &b[VIP] )</label>
+                <input
+                  type="text"
+                  className="mc-input font-mono"
+                  placeholder="z.B. &b[VIP]  oder &c[Admin] "
+                  value={mappingForm.prefix}
+                  onChange={(e) => setMappingForm({ ...mappingForm, prefix: e.target.value })}
+                />
+              </div>
+
+              <div style={{ marginBottom: '18px' }}>
+                <label className="mc-label">PRIORITÄT (HÖHERE ZAHL GEWINNT BEI MEHREREN ROLLEN)</label>
+                <input
+                  type="number"
+                  className="mc-input"
+                  value={mappingForm.priority}
+                  onChange={(e) => setMappingForm({ ...mappingForm, priority: Number(e.target.value) || 10 })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button type="button" onClick={() => setShowMappingModal(false)} className="mc-btn">
+                  ABBRECHEN
+                </button>
+                <button type="submit" className="mc-btn mc-btn-green">
+                  VERKNÜPFUNG SPEICHERN
                 </button>
               </div>
             </form>

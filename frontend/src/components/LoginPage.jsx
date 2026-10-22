@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, User, AlertCircle, RefreshCw, LogIn } from 'lucide-react';
 
-export default function LoginPage({ authStatus, onLoginSuccess, onOpenSetup }) {
+export default function LoginPage({ authStatus, onLoginSuccess }) {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -203,25 +203,6 @@ export default function LoginPage({ authStatus, onLoginSuccess, onOpenSetup }) {
             </button>
           </div>
         )}
-
-        {/* Link to re-run setup */}
-        <div style={{ marginTop: '24px', borderTop: '1px solid #282a35', paddingTop: '16px' }}>
-          <button
-            onClick={onOpenSetup}
-            type="button"
-            className="mc-link"
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--mc-gray)',
-              fontSize: '0.72rem',
-              cursor: 'pointer',
-              textDecoration: 'underline'
-            }}
-          >
-            Setup-Assistenten erneut ausführen (/setup)
-          </button>
-        </div>
       </div>
     </div>
   );

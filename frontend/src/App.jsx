@@ -56,6 +56,11 @@ export default function App() {
         setAuthStatus(data);
         if (!data.isConfigured) {
           setShowSetupWizard(true);
+        } else {
+          setShowSetupWizard(false);
+          if (window.location.pathname === '/setup' || window.location.hash === '#setup') {
+            window.history.replaceState({}, document.title, '/');
+          }
         }
         return data;
       }
@@ -258,7 +263,8 @@ export default function App() {
     );
   }
 
-  if (showSetupWizard || !authStatus?.isConfigured) {
+  // Setup is strictly one-time: only show if the system is not configured yet
+  if (!authStatus?.isConfigured) {
     return (
       <SetupWizardPage
         onSetupCompleted={() => {
@@ -276,7 +282,6 @@ export default function App() {
         onLoginSuccess={() => {
           fetchAuthStatus().then(() => fetchCluster());
         }}
-        onOpenSetup={() => setShowSetupWizard(true)}
       />
     );
   }
@@ -552,7 +557,6 @@ export default function App() {
               <SettingsTab
                 authStatus={authStatus}
                 onLogout={handleLogout}
-                onOpenSetup={() => setShowSetupWizard(true)}
                 onToast={showToast}
               />
             )}

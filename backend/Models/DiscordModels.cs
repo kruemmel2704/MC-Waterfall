@@ -17,6 +17,10 @@ public class DiscordConfig
     public bool RequireGuildMembership { get; set; } = true;
     public string UnverifiedKickMessage { get; set; } = "§cBitte verifiziere dich zuerst über Discord OAuth2: §bhttp://localhost:5173/auth/discord";
     
+    // Role Synchronization (Discord -> LuckPerms / Minecraft)
+    public bool EnableRoleSync { get; set; } = true;
+    public List<DiscordRoleMapping> RoleMappings { get; set; } = new();
+
     // Verified Guild Cache
     public string? CachedGuildName { get; set; }
     public string? CachedGuildIcon { get; set; }
@@ -86,4 +90,30 @@ public class ManualLinkRequest
     public string MinecraftUsername { get; set; } = string.Empty;
     public string DiscordId { get; set; } = string.Empty;
     public string DiscordTag { get; set; } = string.Empty;
+}
+
+public class DiscordRoleMapping
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string DiscordRoleId { get; set; } = string.Empty;
+    public string DiscordRoleName { get; set; } = string.Empty;
+    public int DiscordRoleColor { get; set; }
+    public string MinecraftGroup { get; set; } = "default"; // e.g. "admin", "moderator", "vip", "booster", "builder"
+    public string? Prefix { get; set; } // e.g. "&b[VIP] ", "&c[Admin] "
+    public int Priority { get; set; } = 10;
+    public bool AutoSync { get; set; } = true;
+    public string? CustomCommand { get; set; } // e.g. "lp user {player} parent set {group}"
+}
+
+public class RoleSyncResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int PlayersSynced { get; set; }
+    public List<string> Details { get; set; } = new();
+}
+
+public class SyncPlayerRolesRequest
+{
+    public string? MinecraftUsername { get; set; } // null to sync all linked players
 }

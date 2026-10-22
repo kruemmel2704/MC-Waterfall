@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Settings, Shield, Lock, User, CheckCircle2, AlertCircle, 
-  RotateCcw, Save, LogOut, ExternalLink, RefreshCw
+  Settings, Shield, ShieldCheck, Lock, User, CheckCircle2, AlertCircle, 
+  Save, LogOut, ExternalLink, RefreshCw
 } from 'lucide-react';
 import { WaterfallBeaconIcon, GrassBlockIcon } from './MinecraftIcons';
 
-export default function SettingsTab({ authStatus, onLogout, onOpenSetup, onToast }) {
+export default function SettingsTab({ authStatus, onLogout, onToast }) {
   const [loading, setLoading] = useState(false);
   const [serverName, setServerName] = useState(authStatus?.serverName || '');
   const [architecture, setArchitecture] = useState(authStatus?.architecture || 'DimensionalCluster');
@@ -323,24 +323,35 @@ export default function SettingsTab({ authStatus, onLogout, onOpenSetup, onToast
         </div>
       </div>
 
-      {/* Card 3: Setup Re-Run Wizard */}
-      <div className="mc-card" style={{ padding: '20px', border: '2px solid #3c3e4c', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h4 style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 'bold' }}>
-            SETUP-ASSISTENTEN ERNEUT DURCHLAUFEN (/setup)
-          </h4>
-          <p style={{ fontSize: '0.72rem', color: 'var(--mc-gray)', marginTop: '4px' }}>
-            Möchtest du das Cluster von Grund auf neu konfigurieren, Server-IPs austauschen oder zwischen Single-Server und Cluster wechseln?
-          </p>
+      {/* Card 3: Setup Status Info */}
+      <div className="mc-card" style={{ padding: '18px 20px', border: '2px solid #2e3347', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', background: '#0e1017' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            background: 'rgba(76, 175, 80, 0.15)',
+            border: '2px solid var(--mc-green)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--mc-green)',
+            borderRadius: '4px'
+          }}>
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 'bold', margin: 0 }}>
+              ERST-SETUP STATUS: ABGESCHLOSSEN & GESPERRT
+            </h4>
+            <p style={{ fontSize: '0.72rem', color: 'var(--mc-gray)', margin: '4px 0 0 0' }}>
+              Der Einrichtungs-Assistent (/setup) wurde einmalig ausgeführt und ist jetzt dauerhaft gesperrt. Alle laufenden Einstellungen (Admin-Passwörter, IPs, Discord) können direkt hier im Dashboard verwaltet werden.
+            </p>
+          </div>
         </div>
 
-        <button
-          onClick={onOpenSetup}
-          className="mc-btn mc-btn-blue"
-          style={{ padding: '8px 18px', fontSize: '0.78rem' }}
-        >
-          <RotateCcw size={14} /> SETUP-ASSISTENT ÖFFNEN
-        </button>
+        <span className="mc-badge mc-badge-overworld" style={{ fontSize: '0.7rem' }}>
+          SETUP GESPERRT
+        </span>
       </div>
     </div>
   );
