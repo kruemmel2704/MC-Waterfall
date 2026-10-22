@@ -19,6 +19,9 @@ public class DiscordConfig
     
     // Role Synchronization (Discord -> LuckPerms / Minecraft)
     public bool EnableRoleSync { get; set; } = true;
+    public int AutoSyncIntervalMinutes { get; set; } = 5;
+    public DateTime? LastRoleSyncAt { get; set; }
+    public string? LastRoleSyncMessage { get; set; }
     public List<DiscordRoleMapping> RoleMappings { get; set; } = new();
 
     // Verified Guild Cache

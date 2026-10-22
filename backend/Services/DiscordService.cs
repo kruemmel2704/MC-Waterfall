@@ -792,13 +792,24 @@ public class DiscordService : IDiscordService
             }
         }
 
-        return new RoleSyncResult
+        var result = new RoleSyncResult
         {
             Success = true,
             Message = $"{totalSynced} von {links.Count} Spielern erfolgreich synchronisiert.",
             PlayersSynced = totalSynced,
             Details = allDetails
         };
+
+        try
+        {
+            var config = await GetConfigAsync();
+            config.LastRoleSyncAt = DateTime.UtcNow;
+            config.LastRoleSyncMessage = result.Message;
+            await SaveConfigAsync(config);
+        }
+        catch {}
+
+        return result;
     }
 
     private async Task SaveLinksInternalAsync(List<MinecraftDiscordLink> links)

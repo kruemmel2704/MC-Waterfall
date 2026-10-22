@@ -30,6 +30,7 @@ builder.Services.AddSingleton<IDiscordService, DiscordService>();
 builder.Services.AddSingleton<IPluginManagerService, PluginManagerService>();
 builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddSingleton<IWorldManagerService, WorldManagerService>();
+builder.Services.AddHostedService<RoleSyncBackgroundService>();
 
 // CORS policy for React Frontend (supports external IP, domain, and Docker network)
 builder.Services.AddCors(options =>

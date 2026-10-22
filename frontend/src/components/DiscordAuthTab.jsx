@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Key, Shield, CheckCircle2, AlertCircle, RefreshCw, ExternalLink, 
   Trash2, Plus, Sparkles, UserCheck, ShieldCheck, Copy, Check, Zap, Users, Crown,
-  Globe, Terminal, Compass, Server, Box, Edit3, Lock, ShieldAlert
+  Globe, Terminal, Compass, Server, Box, Edit3, Lock, ShieldAlert, Clock
 } from 'lucide-react';
 import { CommandBlockIcon, RedstoneTorchIcon, GrassBlockIcon, WaterfallBeaconIcon } from './MinecraftIcons';
 
@@ -1061,6 +1061,71 @@ export default function DiscordAuthTab() {
               <br />
               • <strong>Auf dem Server:</strong> Whitelist-Beitritt, Vanilla-Operator (/op), LuckPerms-Rang & Chat-Präfix.
             </p>
+          </div>
+        </div>
+
+        {/* Auto-Sync Banner & Interval Control (Every 5 minutes) */}
+        <div style={{
+          background: '#0d111b',
+          border: '2px solid #28334a',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Clock size={20} color="var(--mc-green)" />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <strong style={{ fontSize: '0.82rem', color: '#fff' }}>
+                  AUTOMATISCHER ROLLEN-SYNC (ALLE {config?.autoSyncIntervalMinutes || 5} MINUTEN)
+                </strong>
+                <span className="mc-badge mc-badge-overworld" style={{ fontSize: '0.62rem' }}>
+                  AKTIV (DAEMON)
+                </span>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--mc-gray)', marginTop: '2px' }}>
+                {config?.lastRoleSyncAt ? (
+                  <>Letzter Sync: <strong style={{ color: 'var(--mc-aqua)' }}>{new Date(config.lastRoleSyncAt).toLocaleTimeString()}</strong> {config.lastRoleSyncMessage ? `• ${config.lastRoleSyncMessage}` : ''}</>
+                ) : (
+                  'Der Hintergrunddienst synchronisiert automatisch alle 5 Minuten alle Discord-Rollen auf die Minecraft-Server.'
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--mc-gray)' }}>Intervall:</span>
+            <select
+              value={config?.autoSyncIntervalMinutes || 5}
+              onChange={async (e) => {
+                const newInt = Number(e.target.value) || 5;
+                const updatedCfg = { ...config, autoSyncIntervalMinutes: newInt };
+                setConfig(updatedCfg);
+                try {
+                  await fetch('/api/discord/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedCfg)
+                  });
+                  setMessage({ type: 'success', text: `Sync-Intervall auf alle ${newInt} Minuten eingestellt!` });
+                } catch (err) {
+                  setMessage({ type: 'error', text: err.message });
+                }
+              }}
+              className="mc-input"
+              style={{ width: 'auto', padding: '4px 8px', fontSize: '0.75rem', background: '#12141a', color: '#fff' }}
+            >
+              <option value="1">Jede Minute (Test)</option>
+              <option value="3">Alle 3 Minuten</option>
+              <option value="5">Alle 5 Minuten (Standard)</option>
+              <option value="10">Alle 10 Minuten</option>
+              <option value="15">Alle 15 Minuten</option>
+              <option value="30">Alle 30 Minuten</option>
+            </select>
           </div>
         </div>
 
